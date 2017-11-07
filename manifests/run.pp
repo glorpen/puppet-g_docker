@@ -32,6 +32,10 @@ define g_docker::run(
   }
   
   $docker_ports = $ports.map | $host_port, $container_port | {
+    g_firewall::ipv6 { "200 docker publish ${name}:${host_port}":
+      dport => $host_port,
+      proto => 'all'
+    }
     "${host_port}:${container_port}"
   }
   
