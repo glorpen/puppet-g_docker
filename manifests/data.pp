@@ -11,7 +11,11 @@ define g_docker::data(
     require => File[$::g_docker::data_path]
   }
   
-  create_resources(::g_docker::data::volume, $volumes, {
-    data_name => $name
-  })
+  $volumes.each | $vol_name, $vol_config | {
+    ::g_docker::data::volume { "${name}:${vol_name}":
+      volume_name => $vol_name,
+      data_name => $name,
+      * => $vol_config
+    }
+  }
 }
