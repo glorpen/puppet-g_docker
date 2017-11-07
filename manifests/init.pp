@@ -13,10 +13,20 @@ class g_docker(
     class {::g_docker::firewall: }
   }
 
+  $puppetizer_conf_path = '/etc/docker/puppetizer.conf.d'
+
   file { $data_path:
     ensure => directory,
     backup => false,
-    force => true
+    force => true,
+    purge => true
+  }
+  
+  file { $puppetizer_conf_path:
+    ensure => directory,
+    backup => false,
+    force => true,
+    purge => true
   }
   
   # /var/lib/docker -> mostly for volumes data

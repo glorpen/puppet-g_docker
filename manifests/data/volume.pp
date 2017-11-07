@@ -14,7 +14,7 @@ define g_docker::data::volume(
     require => File["${::g_docker::data_path}/${data_name}"],
   }
   
-  $binds.each | $bind_name, $bind_config | {
+  $binds.each | $bind_name, $unused | {
     ::g_docker::data::bind { "${data_name}:${volume_name}:${bind_name}":
       data_name => $data_name,
       volume_name => $volume_name,
