@@ -6,7 +6,8 @@ class g_docker(
   String $thinpool_name = 'docker-thin',
   String $thinpool_size,
   String $thinpool_metadata_size,
-  Hash $instances = {}
+  Hash $instances = {},
+  Hash $registries = {}
 ){
   if $manage_firewall {
     class {::g_docker::firewall: }
@@ -35,4 +36,5 @@ class g_docker(
   }
   
   create_resources(::g_docker::run, $instances)
+  create_resources(::docker::registry, $registries)
 }
