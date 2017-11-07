@@ -5,7 +5,8 @@ class g_docker::firewall(
       $v["options"]["com.docker.network.bridge.default_bridge"] == "true"
   }[0]
   
-  if $default_network {
+  if $default_network == undef {
+    warning('Docker default network was not found')
     $re_subnets = []
   } else {
     $re_subnets = $default_network["ipam"]["config"].map | $v | {
