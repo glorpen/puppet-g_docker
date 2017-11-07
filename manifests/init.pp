@@ -19,14 +19,16 @@ class g_docker(
     ensure => directory,
     backup => false,
     force => true,
-    purge => true
+    purge => true,
+    recurse => true
   }
   
   file { $puppetizer_conf_path:
     ensure => directory,
     backup => false,
     force => true,
-    purge => true
+    purge => true,
+    recurse => true
   }
   
   # /var/lib/docker -> mostly for volumes data
