@@ -19,6 +19,7 @@ import docker
 import logging
 import json
 from collections import OrderedDict
+import itertools
 
 #print(json.encoder.JSONEncoder(indent=2).encode(self._node))
 
@@ -237,6 +238,7 @@ class DockerHandler(object):
         nat_rules = []
         docker_nat_rules = []
         bridge_rules = []
+        isolation_rules = []
         
         for n in networks.values():
             if n.is_bridge:
@@ -254,7 +256,15 @@ class DockerHandler(object):
                     bridge_rules.append("-A FORWARD -i {iface} -o {iface} -j ACCEPT".format(iface = n.iface))
                 else:
                     bridge_rules.append("-A FORWARD -i {iface} -o {iface} -j DROP".format(iface = n.iface))
-                    
+                
+        
+        
+        for src, dst in itertools.permutations([n.iface for n in networks.values() if n.is_bridge], 2):
+            isolation_rules.append("-A DOCKER-ISOLATION -i {src} -o {dst} -j DROP".format(
+                src=src,
+                dst=dst
+            ))
+        
         # for forwarding, docker always uses address from sorted list of bridge network interfaces
         for cfg in containers.values():
             ip_conf = None
@@ -293,7 +303,7 @@ class DockerHandler(object):
         
         
         rules = nat_rules + docker_nat_rules
-        rules = bridge_rules
+        rules = bridge_rules + isolation_rules
         
         for r in rules:
             print(r)
