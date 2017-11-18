@@ -185,6 +185,12 @@ class ContainerConfig(object):
     def ip_addresses(self):
         ret = []
         for name, conf in self._node["NetworkSettings"]["Networks"].items():
+            
+            # skip invalid entries
+            # happens when there is not default bridge given and no other networks are used in container
+            if not conf["NetworkID"]:
+                continue
+            
             ret.append({
                 "network_name": name,
                 "ipv4": IPAddress(conf["IPAddress"], conf["IPPrefixLen"]) if conf["IPAddress"] else None,
@@ -276,30 +282,31 @@ class DockerHandler(object):
                 # docker implictly uses docker_gwbridge (it is not reported in container inspect data)
                 # so we have to find its ip address in network data
                 
-                ip_conf = networks["docker_gwbridge"].containers[cfg.id]
+                ip_conf = networks["docker_gwbridge"].containers.get(cfg.id)
             
             #TODO: ipv6
             #TODO: check udp
-            for p in cfg.ports:
-                if ip_conf["ipv4"]:
-                    nat_rules.append("-A POSTROUTING -s {ip}/32 -d {ip}/32 -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
-                        ip = ip_conf["ipv4"].addr,
-                        protocol = p.protocol,
-                        port = p.private_port
-                    ))
-                    docker_nat_rules.append("-A DOCKER -p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
-                        ip = ip_conf["ipv4"].addr,
-                        protocol = p.protocol,
-                        private_port = p.private_port,
-                        port = p.port
-                    ))
-                    
-                    bridge_rules.append("-A DOCKER -d {ip}/32 ! -i {iface} -o {iface} -p {protocol}  -m {protocol}  --dport {private_port} -j ACCEPT".format(
-                        ip = ip_conf["ipv4"].addr,
-                        iface = networks[ip_conf["network_name"]].iface,
-                        protocol = p.protocol,
-                        private_port = p.private_port,
-                    ))
+            if ip_conf:
+                for p in cfg.ports:
+                    if ip_conf["ipv4"]:
+                        nat_rules.append("-A POSTROUTING -s {ip}/32 -d {ip}/32 -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
+                            ip = ip_conf["ipv4"].addr,
+                            protocol = p.protocol,
+                            port = p.private_port
+                        ))
+                        docker_nat_rules.append("-A DOCKER -p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
+                            ip = ip_conf["ipv4"].addr,
+                            protocol = p.protocol,
+                            private_port = p.private_port,
+                            port = p.port
+                        ))
+                        
+                        bridge_rules.append("-A DOCKER -d {ip}/32 ! -i {iface} -o {iface} -p {protocol}  -m {protocol}  --dport {private_port} -j ACCEPT".format(
+                            ip = ip_conf["ipv4"].addr,
+                            iface = networks[ip_conf["network_name"]].iface,
+                            protocol = p.protocol,
+                            private_port = p.private_port,
+                        ))
         
         
         rules = nat_rules + docker_nat_rules
