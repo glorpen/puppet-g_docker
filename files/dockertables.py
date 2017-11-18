@@ -144,7 +144,8 @@ class NetworkConfig(object):
         ret = {}
         for k,c in self._node["Containers"].items():
             ret[k] = {
-                "id": k,
+                "container_id": k,
+                "network_name": self.name,
                 "ipv4": IPAddress(c["IPv4Address"]) if c["IPv4Address"] else None,
                 "ipv6": IPAddress(c["IPv6Address"]) if c["IPv6Address"] else None
             }
@@ -184,7 +185,7 @@ class ContainerConfig(object):
         ret = []
         for name, conf in self._node["NetworkSettings"]["Networks"].items():
             ret.append({
-                "name": name,
+                "network_name": name,
                 "ipv4": IPAddress(conf["IPAddress"], conf["IPPrefixLen"]) if conf["IPAddress"] else None,
                 "ipv6": IPAddress(conf["GlobalIPv6Address"], conf["GlobalIPv6PrefixLen"]) if conf["GlobalIPv6Address"] else None,
             })
@@ -235,6 +236,7 @@ class DockerHandler(object):
         
         nat_rules = []
         docker_nat_rules = []
+        bridge_rules = []
         
         for n in networks.values():
             if n.is_bridge:
@@ -242,12 +244,21 @@ class DockerHandler(object):
                     nat_rules.append("-A POSTROUTING -o %s -m addrtype --src-type LOCAL -j MASQUERADE" % n.iface)
                     if n.nat:
                         nat_rules.append("-A POSTROUTING -s %s ! -o %s -j MASQUERADE" % (subnet, n.iface))
-            #rules.append("-A DOCKER -i %s -j RETURN" % n.iface)
-        
+                
+                
+                bridge_rules.append("-A FORWARD -o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = n.iface))
+                bridge_rules.append("-A FORWARD -o {iface} -j DOCKER".format(iface = n.iface))
+                bridge_rules.append("-A FORWARD -i {iface} ! -o {iface} -j ACCEPT".format(iface = n.iface))
+                
+                if n.icc:
+                    bridge_rules.append("-A FORWARD -i {iface} -o {iface} -j ACCEPT".format(iface = n.iface))
+                else:
+                    bridge_rules.append("-A FORWARD -i {iface} -o {iface} -j DROP".format(iface = n.iface))
+                    
         # for forwarding, docker always uses address from sorted list of bridge network interfaces
         for cfg in containers.values():
             ip_conf = None
-            for i in filter(lambda x:networks[x["name"]].is_bridge, cfg.ip_addresses):
+            for i in filter(lambda x:networks[x["network_name"]].is_bridge, cfg.ip_addresses):
                 ip_conf = i
                 break
             else:
@@ -272,9 +283,17 @@ class DockerHandler(object):
                         private_port = p.private_port,
                         port = p.port
                     ))
+                    
+                    bridge_rules.append("-A DOCKER -d {ip}/32 ! -i {iface} -o {iface} -p {protocol}  -m {protocol}  --dport {private_port} -j ACCEPT".format(
+                        ip = ip_conf["ipv4"].addr,
+                        iface = networks[ip_conf["network_name"]].iface,
+                        protocol = p.protocol,
+                        private_port = p.private_port,
+                    ))
         
         
         rules = nat_rules + docker_nat_rules
+        rules = bridge_rules
         
         for r in rules:
             print(r)
