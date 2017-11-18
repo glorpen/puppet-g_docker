@@ -77,4 +77,22 @@ class g_docker::firewall(
     purge => false,
     require => Class['docker']
   }
+
+# TODO: skrypt tworzący rules w zadanym CHAINie a ten chain jest już tworzony przez puppet'a tak jak i przepływ do niego
+# TODO: docker --iptables=false --userland-proxy=false
+# może pozbyć się bridge i zrobić macvlan? https://github.com/docker/libnetwork/blob/master/docs/macvlan.md
+# macvlan w dockerze + host na interfejsie virtualnym który potem jest forwardowny przez iptables itp
+# albo jakaś kombinacja, nawet nie potrzeba consula by między hostami mogły się komunikować
+#dla ipv6:
+#ip6tables -t nat $flag POSTROUTING -s fd00:abcd:abcd::/48 ! -o docker0 -j MASQUERADE
+#ip6tables -t nat $flag PREROUTING -i eth0 -p tcp --dport 80 -j DNAT --to-destination [fd00:abcd:abcd::242:ac11:3]:80
+# ... albo tymczasowo pominąć ipv6 - bo jak rules wyglądają w swarm? containery powinny się widzieć więć jakiś dns-server musi być
+
+# kontenery mogą mieć cap-add net_admin i zarządzać swoimi iptables wewnątrz, chyba nie mogą wpłynąć na hosta
+
+# zostaje bridge dockerowe, tylko dochodzi skrypt zarządający iptables
+# 1. czy da się rules dockera wpakować do osobnych chain? prościej je łapać wtedy w puppecie
+# 2. puppet ignoruje te chainy ale sam dodaje miejce przeskoku do nich
+# 3. jeśli potrzeba, kontener sam zarządza swoimi iptables, ale pewnie host też mozę rules przed chainem dodać
+
 }

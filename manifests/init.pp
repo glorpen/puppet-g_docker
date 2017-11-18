@@ -49,4 +49,7 @@ class g_docker(
   
   create_resources(::g_docker::run, $instances)
   create_resources(::docker::registry, $registries)
+  #TODO: fix with linematch resource and https://github.com/puppetlabs/puppetlabs-docker/issues/15
+  
+
 }
