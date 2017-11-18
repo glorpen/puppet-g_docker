@@ -17,6 +17,10 @@ from __future__ import print_function
 
 import docker
 import logging
+import json
+from collections import OrderedDict
+
+#print(json.encoder.JSONEncoder(indent=2).encode(self._node))
 
 class ConnectionException(Exception):
     pass
@@ -43,6 +47,17 @@ skrypt będzie działał podobnie jak docker-hostdns:
 - możliwość przeładowania konfiguracji w locie
 '''
 
+class IPAddress(object):
+    def __init__(self, ip, prefix_len=None):
+        super(IPAddress, self).__init__()
+        
+        if "/" in ip:
+            self.addr, l = ip.split("/", 1)
+            self.prefix_len = int(l)
+        else:
+            self.addr = str(ip)
+            self.prefix_len = int(prefix_len)
+    
 class NetworkConfig(object):
     def __init__(self, node):
         super(NetworkConfig, self).__init__()
@@ -72,6 +87,10 @@ class NetworkConfig(object):
     @property
     def is_bridge(self):
         return self.driver == self.DRIVER_BRIDGE
+    
+    @property
+    def is_overlay(self):
+        return self.driver == self.DRIVER_OVERLAY
     
     @property
     def short_id(self):
@@ -119,13 +138,25 @@ class NetworkConfig(object):
     @property
     def subnets(self):
         return [c["Subnet"] for c in self._node["IPAM"]["Config"]]
+    
+    @property
+    def containers(self):
+        ret = {}
+        for k,c in self._node["Containers"].items():
+            ret[k] = {
+                "id": k,
+                "ipv4": IPAddress(c["IPv4Address"]) if c["IPv4Address"] else None,
+                "ipv6": IPAddress(c["IPv6Address"]) if c["IPv6Address"] else None
+            }
+        return ret
 
 class PortConfig(object):
-    def __init__(self, proto, port, ip=None):
+    def __init__(self, proto, port, private_port, ip=None):
         super(PortConfig, self).__init__()
         
         self.protocol = proto
         self.port = port
+        self.private_port = private_port
         self.ip = None if ip == '0.0.0.0' else ip
     
     def __repr__(self):
@@ -137,34 +168,27 @@ class ContainerConfig(object):
         self._node = node
     
     @property
+    def created_at(self):
+        return self._node["Created"]
+    
+    @property
     def id(self):
         return self._node["Id"]
     
     @property
     def ports(self):
-        return [PortConfig(i['Type'], i['PublicPort'], i['IP']) for i in self._node["Ports"]]
+        return [PortConfig(i['Type'], i['PublicPort'], i['PrivatePort'], i['IP']) for i in self._node["Ports"]]
     
     @property
-    def ipv4_address(self):
-        print(self._node)
-        return self._node["IPAddress"]
-    
-    @property
-    def ipv6_address(self):
-        return self._node["GlobalIPv6Address"]
-
-# class ServiceConfig(object):
-#     def __init__(self, node):
-#         super(ServiceConfig, self).__init__()
-#         self._node = node
-#     
-#     @property
-#     def id(self):
-#         return self._node["Id"]
-#     
-#     @property
-#     def ports(self):
-#         return [PortConfig(i['Protocol'], i['PublishedPort']) for i in self._node["Endpoint"]["Ports"]]
+    def ip_addresses(self):
+        ret = []
+        for name, conf in self._node["NetworkSettings"]["Networks"].items():
+            ret.append({
+                "name": name,
+                "ipv4": IPAddress(conf["IPAddress"], conf["IPPrefixLen"]) if conf["IPAddress"] else None,
+                "ipv6": IPAddress(conf["GlobalIPv6Address"], conf["GlobalIPv6PrefixLen"]) if conf["GlobalIPv6Address"] else None,
+            })
+        return ret
 
 class DockerHandler(object):
     
@@ -187,30 +211,70 @@ class DockerHandler(object):
         
         self.load_containers()
     
-    def load_containers(self):
+    def _get_networks(self):
+        networks = []
+        for data in self.client.networks():
+            n = NetworkConfig(data)
+            networks.append((n.name, n))
         
-        networks = sorted([NetworkConfig(n) for n in self.client.networks()], key=lambda x:x.created_at, reverse=True)
-        
-        nat_rules = []
-        
-        for n in networks:
-            if n.nat:
-                if n.name == "docker_gwbridge":
-                    nat_rules.append("-A POSTROUTING -o %s -m addrtype --src-type LOCAL -j MASQUERADE" % n.iface)
-                for subnet in n.subnets:
-                    nat_rules.append("-A POSTROUTING -s %s ! -o %s -j MASQUERADE" % (subnet, n.iface))
-        
-                #rules.append("-A DOCKER -i %s -j RETURN" % n.iface)
-        
+        networks.sort(key=lambda x:x[1].created_at, reverse=True)
+        return OrderedDict(networks)
+    
+    def _get_containers(self):
+        containers = []
         for n in self.client.containers():
             cfg = ContainerConfig(n)
-            print(cfg.ipv4_address)
+            containers.append((cfg.id, cfg))
+        containers.sort(key=lambda x:x[1].created_at, reverse=False)
+        return OrderedDict(containers)
+    
+    def load_containers(self):
         
-#         for n in self.client.services():
-#             cfg = ServiceConfig(n)
-#             #print(cfg.ports)
+        networks = self._get_networks()
+        containers = self._get_containers()
         
-        rules = nat_rules
+        nat_rules = []
+        docker_nat_rules = []
+        
+        for n in networks.values():
+            if n.is_bridge:
+                for subnet in n.subnets:
+                    nat_rules.append("-A POSTROUTING -o %s -m addrtype --src-type LOCAL -j MASQUERADE" % n.iface)
+                    if n.nat:
+                        nat_rules.append("-A POSTROUTING -s %s ! -o %s -j MASQUERADE" % (subnet, n.iface))
+            #rules.append("-A DOCKER -i %s -j RETURN" % n.iface)
+        
+        # for forwarding, docker always uses address from sorted list of bridge network interfaces
+        for cfg in containers.values():
+            ip_conf = None
+            for i in filter(lambda x:networks[x["name"]].is_bridge, cfg.ip_addresses):
+                ip_conf = i
+                break
+            else:
+                # when there is no bridge network and only overlay is available,
+                # docker implictly uses docker_gwbridge (it is not reported in container inspect data)
+                # so we have to find its ip address in network data
+                
+                ip_conf = networks["docker_gwbridge"].containers[cfg.id]
+            
+            #TODO: ipv6
+            #TODO: check udp
+            for p in cfg.ports:
+                if ip_conf["ipv4"]:
+                    nat_rules.append("-A POSTROUTING -s {ip}/32 -d {ip}/32 -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
+                        ip = ip_conf["ipv4"].addr,
+                        protocol = p.protocol,
+                        port = p.private_port
+                    ))
+                    docker_nat_rules.append("-A DOCKER -p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
+                        ip = ip_conf["ipv4"].addr,
+                        protocol = p.protocol,
+                        private_port = p.private_port,
+                        port = p.port
+                    ))
+        
+        
+        rules = nat_rules + docker_nat_rules
         
         for r in rules:
             print(r)
