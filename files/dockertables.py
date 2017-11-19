@@ -225,12 +225,12 @@ class Rule(object):
         self._data = data
         return self
     
-    def ipv6(self):
-        self._ipv6 = True
+    def ipv6(self, v=True):
+        self._ipv6 = v
         return self
     
-    def ipv4(self):
-        self._ipv4 = True
+    def ipv4(self, v=True):
+        self._ipv4 = v
         return self
     
     def ip_any(self):
@@ -377,7 +377,8 @@ class DockerHandler(object):
                 
                 with rules.new() as r:
                     r.rule("nat", "POSTROUTING", "-o %s -m addrtype --src-type LOCAL -j MASQUERADE" % n.iface)
-                    r.group(RuleSet.GROUP_NETWORK).ip_any().tags(network=n.id)
+                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
+                    r.ipv6(n.uses_ipv6)
                     
                 if n.nat:
                     grouped_subnets = [["ipv4", n.ip4_subnets], ["ipv6", n.ip6_subnets]]
@@ -390,19 +391,23 @@ class DockerHandler(object):
                 
                 with rules.new() as r:
                     r.rule("filter", "FORWARD", "-o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = n.iface))
-                    r.group(RuleSet.GROUP_NETWORK).ip_any().tags(network=n.id)
+                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
+                    r.ipv6(n.uses_ipv6)
                 
                 with rules.new() as r:
                     r.rule("filter", "FORWARD", "-o {iface} -j DOCKER".format(iface = n.iface))
-                    r.group(RuleSet.GROUP_NETWORK).ip_any().tags(network=n.id)
+                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
+                    r.ipv6(n.uses_ipv6)
                 
                 with rules.new() as r:
                     r.rule("filter", "FORWARD", "-i {iface} ! -o {iface} -j ACCEPT".format(iface = n.iface))
-                    r.group(RuleSet.GROUP_NETWORK).ip_any().tags(network=n.id)
+                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
+                    r.ipv6(n.uses_ipv6)
                 
                 with rules.new() as r:
                     r.rule("filter", "FORWARD", "-i {iface} -o {iface} -j {action}".format(iface = n.iface, action="ACCEPT" if n.icc else "DROP"))
-                    r.group(RuleSet.GROUP_NETWORK).ip_any().tags(network=n.id)
+                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
+                    r.ipv6(n.uses_ipv6)
         
         
         for src, dst in itertools.permutations([n for n in networks.values() if n.is_bridge], 2):
@@ -412,8 +417,7 @@ class DockerHandler(object):
                 r.ipv4()
                 
                 # don't add ipv6 rules to non-ipv6 aware networks
-                if src.uses_ipv6 and dst.uses_ipv6:
-                    r.ipv6()
+                r.ipv6(src.uses_ipv6 and dst.uses_ipv6)
         
         # for forwarding, docker always uses address from sorted list of bridge network interfaces
         for cfg in containers.values():
@@ -443,7 +447,6 @@ class DockerHandler(object):
                     if ip_conf["ipv4"]:
                         ip4_conf = ip_conf
             
-            #TODO: ipv6
             #TODO: check udp
             if ip4_conf or ip6_conf:
                 grouped_ips = [["ipv4", ip4_conf], ["ipv6", ip6_conf]]
