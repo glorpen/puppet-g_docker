@@ -145,24 +145,18 @@ class PortConfig(object):
 class ContainerConfig(object):
     def __init__(self, node):
         super(ContainerConfig, self).__init__()
-        self._node = node
+        
+        self._read(node)
     
-    @property
-    def created_at(self):
-        return self._node["Created"]
+    def _read(self, node):
+        self.created_at = node["Created"]
+        self.id = node["Id"]
+        self.ports = tuple(PortConfig(i['Type'], i['PublicPort'], i['PrivatePort'], i['IP']) for i in node["Ports"])
+        self.ip_addresses = self._read_ip_addresses(node)
     
-    @property
-    def id(self):
-        return self._node["Id"]
-    
-    @property
-    def ports(self):
-        return [PortConfig(i['Type'], i['PublicPort'], i['PrivatePort'], i['IP']) for i in self._node["Ports"]]
-    
-    @property
-    def ip_addresses(self):
+    def _read_ip_addresses(self, node):
         ret = []
-        for name, conf in self._node["NetworkSettings"]["Networks"].items():
+        for name, conf in node["NetworkSettings"]["Networks"].items():
             
             # skip invalid entries
             # happens when there is not default bridge given and no other networks are used in container
