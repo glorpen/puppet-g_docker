@@ -236,9 +236,6 @@ class RuleSet(object):
         yield r
         self.add(r)
     
-    #def __iter__(self):
-    #    yield from self.filter()
-    
     def _check_filter_req(self, rule, **kwargs):
         for k, v in kwargs.items():
             if v is None:
@@ -255,7 +252,7 @@ class RuleSet(object):
         return True
     
     def filter(self, ipv4=None, ipv6=None, has_tag=None, has_tag_with_value=None):
-        rs = sorted(self._rules, lambda a,b: cmp(a._group, b._group))
+        rs = sorted(self._rules, key=lambda x: x._group)
         
         for i in rs:
             
