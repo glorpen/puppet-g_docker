@@ -21,6 +21,7 @@ import json
 from collections import OrderedDict
 import itertools
 import contextlib
+import copy
 
 #print(json.encoder.JSONEncoder(indent=2).encode(self._node))
 
@@ -218,10 +219,74 @@ class Rule(object):
     def __repr__(self):
         return "-t %s -A %s %s" % (self._table, self._chain, self._data)
 
+def _filter_rules(rules, ipv4=None, ipv6=None, has_tag=None, has_tag_with_value=None, f=None):
+    for item in rules:
+        
+        if f is None:
+            i = item
+        else:
+            i = f(item)
+        
+        if ipv4 is not None and ipv4 != i._ipv4:
+            continue
+        if ipv6 is not None and ipv6 != i._ipv6:
+            continue
+        if has_tag is not None and has_tag not in i._tags:
+            continue
+        if has_tag_with_value is not None:
+            for k,v in has_tag_with_value.items():
+                if not i._tags.has(k):
+                    break
+                if isinstance(v, list):
+                    if v not in i._tags[k]:
+                        break
+                else:
+                    if v != i._tags[k]:
+                        break
+            else:
+                continue
+        
+        yield i
+
+class RuleSetDiff(object):
+    def __init__(self, rule_set):
+        super(RuleSetDiff, self).__init__()
+        self._rs = rule_set
+    
+    def __enter__(self):
+        self._org = copy.copy(self._rs.rules)
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._current = copy.copy(self._rs.rules)
+    
+    def get_removed_rules(self):
+        removed = set(self._org).difference(self._current)
+        
+        for pos, r in enumerate(self._org):
+            if r in removed:
+                yield (pos, r)
+    
+    def get_added_rules(self):
+        added = set(self._current).difference(self._org)
+        
+        for pos, r in enumerate(self._current):
+            if r in added:
+                yield (pos, r)    
+    
+    def _filter(self, rules, **kwargs):
+        return _filter_rules(rules, f=lambda x:x[1], **kwargs)
+    
+    def filter_added(self, **kwargs):
+        return self._filter(self.get_added_rules(), **kwargs)
+    def filter_removed(self, **kwargs):
+        return self._filter(self.get_removed_rules(), **kwargs)
+
 class RuleSet(object):
     
     GROUP_NETWORK = 1
     GROUP_CONTAINER = 2
+    
+    _needs_sorting = True
     
     def __init__(self):
         super(RuleSet, self).__init__()
@@ -229,6 +294,14 @@ class RuleSet(object):
     
     def add(self, rule):
         self._rules.append(rule)
+        self._needs_sorting = True
+    
+    @property
+    def rules(self):
+        if self._needs_sorting:
+            self._rules.sort(key=lambda x: x._group)
+        
+        return self._rules
     
     @contextlib.contextmanager
     def new(self):
@@ -236,46 +309,11 @@ class RuleSet(object):
         yield r
         self.add(r)
     
-    def _check_filter_req(self, rule, **kwargs):
-        for k, v in kwargs.items():
-            if v is None:
-                continue
-            
-            lv = getattr(i, k)
-            if isinstance(lv, [list, dict]):
-                if v not in lv:
-                     return False
-            else:
-                if v != lv:
-                    return False
-        
-        return True
+    def diff(self):
+        return RuleSetDiff(self)
     
-    def filter(self, ipv4=None, ipv6=None, has_tag=None, has_tag_with_value=None):
-        rs = sorted(self._rules, key=lambda x: x._group)
-        
-        for i in rs:
-            
-            if ipv4 is not None and ipv4 != i._ipv4:
-                continue
-            if ipv6 is not None and ipv6 != i._ipv6:
-                continue
-            if has_tag is not None and has_tag not in i._tags:
-                continue
-            if has_tag_with_value is not None:
-                for k,v in has_tag_with_value.items():
-                    if not i._tags.has(k):
-                        break
-                    if isinstance(v, list):
-                        if v not in i._tags[k]:
-                            break
-                    else:
-                        if v != i._tags[k]:
-                            break
-                else:
-                    continue
-            
-            yield i
+    def filter(self, **kwargs):
+        return _filter_rules(self.rules, **kwargs)
     
     __iter__ = filter
 
@@ -467,6 +505,13 @@ class DockerHandler(object):
                     
         # https://docs.docker.com/engine/userguide/networking/default_network/ipv6/#how-ipv6-works-on-docker
         # TODO: info about ip6 forward sysctl in docs
+        
+        #d = self._rules.diff()
+        #with d:
+        #    del self._rules.rules[3]
+        #for r in d.filter_removed(ipv4=True):
+        #    print(r)
+        #return
         
         for r in self._rules.filter():
             print(r)
