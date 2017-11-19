@@ -322,10 +322,14 @@ class DockerHandler(object):
     
     client = None
     
+    _networks = None
+    _containers = None
+    
     def __init__(self):
         super(DockerHandler, self).__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
-        self._hosts_cache = {}
+        
+        self._rules = RuleSet()
     
     def setup(self):
         try:
@@ -337,167 +341,173 @@ class DockerHandler(object):
         self.logger.info("Connected to docker")
         self.client = client
         
-        self.load_containers()
+        self.load()
     
     def _get_networks(self):
-        networks = []
-        for data in self.client.networks():
-            n = NetworkConfig(data)
-            networks.append((n.name, n))
-        
-        networks.sort(key=lambda x:x[1].created_at, reverse=True)
-        return OrderedDict(networks)
+        if self._networks is None:
+            networks = []
+            for data in self.client.networks():
+                n = NetworkConfig(data)
+                networks.append((n.name, n))
+            
+            networks.sort(key=lambda x:x[1].created_at, reverse=True)
+            self._networks = OrderedDict(networks)
+        return self._networks
     
     def _get_containers(self):
-        containers = []
-        for n in self.client.containers():
-            cfg = ContainerConfig(n)
-            containers.append((cfg.id, cfg))
-        containers.sort(key=lambda x:x[1].created_at, reverse=True)
-        return OrderedDict(containers)
+        if self._containers is None:
+            containers = []
+            for n in self.client.containers():
+                cfg = ContainerConfig(n)
+                containers.append((cfg.id, cfg))
+            containers.sort(key=lambda x:x[1].created_at, reverse=True)
+            self._containers = OrderedDict(containers)
+        return self._containers
     
-    def load_containers(self):
-        
+    def _get_ip_conf_for_container(self, container):
         networks = self._get_networks()
-        containers = self._get_containers()
         
-        rules = RuleSet()
+        ip4_conf = ip6_conf = None
+        for i in filter(lambda x:networks[x["network_name"]].is_bridge, container.ip_addresses):
+            if not ip4_conf and i["ipv4"]:
+                ip4_conf = i
+            if not ip6_conf and i["ipv6"]:
+                ip6_conf = i
+                # if both ipv4 and ipv6 addresses are found, Docker uses that network
+                if i["ipv4"]:
+                    ip4_conf = i
+            
+            if ip6_conf and ip4_conf:
+                break
+        else:
+            # when there is no bridge network and only overlay is available,
+            # docker implictly uses docker_gwbridge (it is not reported in container inspect data)
+            # so we have to find its ip address in network data
+            
+            # TODO: check ipv6 failover on docker_gwbridge
+            
+            ip_conf = networks["docker_gwbridge"].containers.get(container.id)
+            if ip_conf:
+                if ip_conf["ipv6"]:
+                    ip6_conf = ip_conf
+                if ip_conf["ipv4"]:
+                    ip4_conf = ip_conf
         
-        nat_rules = []
-        nat6_rules = []
-        docker_nat_rules = []
-        docker_nat6_rules = []
-        bridge_rules = []
-        bridge6_rules = []
-        isolation_rules = []
-        isolation6_rules = []
+        return ip4_conf, ip6_conf
+    
+    def add_network_rules(self, network):
+        if not network.is_bridge:
+            return
         
-        for n in networks.values():
-            if n.is_bridge:
-                
-                with rules.new() as r:
-                    r.rule("nat", "POSTROUTING", "-o %s -m addrtype --src-type LOCAL -j MASQUERADE" % n.iface)
-                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
-                    r.ipv6(n.uses_ipv6)
-                    
-                if n.nat:
-                    grouped_subnets = [["ipv4", n.ip4_subnets], ["ipv6", n.ip6_subnets]]
-                    for ip_type, subnets in grouped_subnets:
-                        for subnet in subnets:
-                            with rules.new() as r:
-                                r.rule("nat", "POSTROUTING", "-s %s ! -o %s -j MASQUERADE" % (subnet, n.iface))
-                                r.group(RuleSet.GROUP_NETWORK).tags(network=n.id)
-                                r.ip_type(ip_type)
-                
-                with rules.new() as r:
-                    r.rule("filter", "FORWARD", "-o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = n.iface))
-                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
-                    r.ipv6(n.uses_ipv6)
-                
-                with rules.new() as r:
-                    r.rule("filter", "FORWARD", "-o {iface} -j DOCKER".format(iface = n.iface))
-                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
-                    r.ipv6(n.uses_ipv6)
-                
-                with rules.new() as r:
-                    r.rule("filter", "FORWARD", "-i {iface} ! -o {iface} -j ACCEPT".format(iface = n.iface))
-                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
-                    r.ipv6(n.uses_ipv6)
-                
-                with rules.new() as r:
-                    r.rule("filter", "FORWARD", "-i {iface} -o {iface} -j {action}".format(iface = n.iface, action="ACCEPT" if n.icc else "DROP"))
-                    r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=n.id)
-                    r.ipv6(n.uses_ipv6)
+        with self._rules.new() as r:
+            r.rule("nat", "POSTROUTING", "-o %s -m addrtype --src-type LOCAL -j MASQUERADE" % network.iface)
+            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
+            r.ipv6(network.uses_ipv6)
+            
+        if network.nat:
+            grouped_subnets = [["ipv4", network.ip4_subnets], ["ipv6", network.ip6_subnets]]
+            for ip_type, subnets in grouped_subnets:
+                for subnet in subnets:
+                    with self._rules.new() as r:
+                        r.rule("nat", "POSTROUTING", "-s %s ! -o %s -j MASQUERADE" % (subnet, network.iface))
+                        r.group(RuleSet.GROUP_NETWORK).tags(network=network.id)
+                        r.ip_type(ip_type)
         
+        with self._rules.new() as r:
+            r.rule("filter", "FORWARD", "-o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = network.iface))
+            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
+            r.ipv6(network.uses_ipv6)
         
-        for src, dst in itertools.permutations([n for n in networks.values() if n.is_bridge], 2):
-            with rules.new() as r:
-                r.rule("filter", "DOCKER-ISOLATION", "-i {src} -o {dst} -j DROP".format(src=src.iface, dst=dst.iface))
-                r.group(RuleSet.GROUP_NETWORK).tags(network=(src.id, dst.id))
+        with self._rules.new() as r:
+            r.rule("filter", "FORWARD", "-o {iface} -j DOCKER".format(iface = network.iface))
+            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
+            r.ipv6(network.uses_ipv6)
+        
+        with self._rules.new() as r:
+            r.rule("filter", "FORWARD", "-i {iface} ! -o {iface} -j ACCEPT".format(iface = network.iface))
+            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
+            r.ipv6(network.uses_ipv6)
+        
+        with self._rules.new() as r:
+            r.rule("filter", "FORWARD", "-i {iface} -o {iface} -j {action}".format(iface = network.iface, action="ACCEPT" if network.icc else "DROP"))
+            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
+            r.ipv6(network.uses_ipv6)
+        
+        for dst in self._get_networks().values():
+            if not dst.is_bridge or dst is network:
+                continue
+        
+            with self._rules.new() as r:
+                r.rule("filter", "DOCKER-ISOLATION", "-i {src} -o {dst} -j DROP".format(src=network.iface, dst=dst.iface))
+                r.group(RuleSet.GROUP_NETWORK).tags(network=(network.id, dst.id))
                 r.ipv4()
                 
                 # don't add ipv6 rules to non-ipv6 aware networks
-                r.ipv6(src.uses_ipv6 and dst.uses_ipv6)
+                r.ipv6(network.uses_ipv6 and dst.uses_ipv6)
+    
+    def add_container_rules(self, container):
+        ip4_conf, ip6_conf = self._get_ip_conf_for_container(container)
+        
+        #TODO: check udp
+        if ip4_conf or ip6_conf:
+            grouped_ips = [["ipv4", ip4_conf], ["ipv6", ip6_conf]]
+            for p in container.ports:
+                for ip_type, ip_conf in grouped_ips:
+                    if ip_conf is None:
+                        continue
+                    
+                    addr = ip_conf[ip_type].addr
+                    if ip_type == 'ipv4':
+                        prefix = "32"
+                        addr_escaped = addr
+                    else:
+                        prefix = '128'
+                        addr_escaped = "[%s]" % addr 
+                    
+                    with self._rules.new() as r:
+                        r.rule("nat", "POSTROUTING", "-s {ip}/{prefix} -d {ip}/{prefix} -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
+                            ip = addr,
+                            protocol = p.protocol,
+                            port = p.private_port,
+                            prefix = prefix
+                        ))
+                        r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id)
+                        r.ip_type(ip_type)
+                    
+                    with self._rules.new() as r:
+                        r.rule("nat", "DOCKER", "-p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
+                            ip = addr_escaped,
+                            protocol = p.protocol,
+                            private_port = p.private_port,
+                            port = p.port
+                        ))
+                        r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id).ip_type(ip_type)
+                    
+                    networks = self._get_networks()
+                    
+                    with self._rules.new() as r:
+                        r.rule("filter", "DOCKER", "-d {ip}/{prefix} ! -i {iface} -o {iface} -p {protocol} -m {protocol} --dport {private_port} -j ACCEPT".format(
+                            ip = addr,
+                            iface = networks[ip_conf["network_name"]].iface,
+                            protocol = p.protocol,
+                            private_port = p.private_port,
+                            prefix = prefix
+                        ))
+                        r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id).ip_type(ip_type)
+    
+    def load(self):
+        
+        for n in self._get_networks().values():
+            self.add_network_rules(n)
         
         # for forwarding, docker always uses address from sorted list of bridge network interfaces
-        for cfg in containers.values():
-            ip4_conf = ip6_conf = None
-            for i in filter(lambda x:networks[x["network_name"]].is_bridge, cfg.ip_addresses):
-                if not ip4_conf and i["ipv4"]:
-                    ip4_conf = i
-                if not ip6_conf and i["ipv6"]:
-                    ip6_conf = i
-                    # if both ipv4 and ipv6 addresses are found, Docker uses that network
-                    if i["ipv4"]:
-                        ip4_conf = i
-                
-                if ip6_conf and ip4_conf:
-                    break
-            else:
-                # when there is no bridge network and only overlay is available,
-                # docker implictly uses docker_gwbridge (it is not reported in container inspect data)
-                # so we have to find its ip address in network data
-                
-                # TODO: check ipv6 failover on docker_gwbridge
-                
-                ip_conf = networks["docker_gwbridge"].containers.get(cfg.id)
-                if ip_conf:
-                    if ip_conf["ipv6"]:
-                        ip6_conf = ip_conf
-                    if ip_conf["ipv4"]:
-                        ip4_conf = ip_conf
-            
-            #TODO: check udp
-            if ip4_conf or ip6_conf:
-                grouped_ips = [["ipv4", ip4_conf], ["ipv6", ip6_conf]]
-                for p in cfg.ports:
-                    for ip_type, ip_conf in grouped_ips:
-                        if ip_conf is None:
-                            continue
-                        
-                        addr = ip_conf[ip_type].addr
-                        if ip_type == 'ipv4':
-                            prefix = "32"
-                            addr_escaped = addr
-                        else:
-                            prefix = '128'
-                            addr_escaped = "[%s]" % addr 
-                        
-                        with rules.new() as r:
-                            r.rule("nat", "POSTROUTING", "-s {ip}/{prefix} -d {ip}/{prefix} -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
-                                ip = addr,
-                                protocol = p.protocol,
-                                port = p.private_port,
-                                prefix = prefix
-                            ))
-                            r.group(RuleSet.GROUP_CONTAINER).tags(container=cfg.id)
-                            r.ip_type(ip_type)
-                        
-                        with rules.new() as r:
-                            r.rule("nat", "DOCKER", "-p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
-                                ip = addr_escaped,
-                                protocol = p.protocol,
-                                private_port = p.private_port,
-                                port = p.port
-                            ))
-                            r.group(RuleSet.GROUP_CONTAINER).tags(container=cfg.id).ip_type(ip_type)
-                        
-                        with rules.new() as r:
-                            r.rule("filter", "DOCKER", "-d {ip}/{prefix} ! -i {iface} -o {iface} -p {protocol} -m {protocol} --dport {private_port} -j ACCEPT".format(
-                                ip = addr,
-                                iface = networks[ip_conf["network_name"]].iface,
-                                protocol = p.protocol,
-                                private_port = p.private_port,
-                                prefix = prefix
-                            ))
-                            r.group(RuleSet.GROUP_CONTAINER).tags(container=cfg.id).ip_type(ip_type)
+        for c in self._get_containers().values():
+            self.add_container_rules(c)
                     
-        #rules = nat_rules #+ docker_nat_rules + bridge_rules + isolation_rules
-        #rules = nat6_rules + docker_nat6_rules + bridge6_rules + isolation6_rules
         # https://docs.docker.com/engine/userguide/networking/default_network/ipv6/#how-ipv6-works-on-docker
         # TODO: info about ip6 forward sysctl in docs
         
-        for r in rules.filter(ipv6=True):
+        for r in self._rules.filter():
             print(r)
     
     def on_disconnect(self, container_id):
