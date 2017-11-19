@@ -365,6 +365,7 @@ class DockerHandler(object):
         return self._containers
     
     def _get_ip_conf_for_container(self, container):
+        # for forwarding, docker always uses address from sorted list of bridge network interfaces
         networks = self._get_networks()
         
         ip4_conf = ip6_conf = None
@@ -500,7 +501,6 @@ class DockerHandler(object):
         for n in self._get_networks().values():
             self.add_network_rules(n)
         
-        # for forwarding, docker always uses address from sorted list of bridge network interfaces
         for c in self._get_containers().values():
             self.add_container_rules(c)
                     
