@@ -410,6 +410,10 @@ class DockerHandler(object):
                 r.rule("filter", "DOCKER-ISOLATION", "-i {src} -o {dst} -j DROP".format(src=src.iface, dst=dst.iface))
                 r.group(RuleSet.GROUP_NETWORK).tags(network=(src.id, dst.id))
                 r.ipv4()
+                
+                # don't add ipv6 rules to non-ipv6 aware networks
+                if src.uses_ipv6 and dst.uses_ipv6:
+                    r.ipv6()
         
         # for forwarding, docker always uses address from sorted list of bridge network interfaces
         for cfg in containers.values():
