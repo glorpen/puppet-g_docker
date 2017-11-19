@@ -136,9 +136,16 @@ class NetworkConfig(object):
         
         raise Exception("Not implemented")
     
-    @property
-    def subnets(self):
+    def get_subnets(self):
         return [c["Subnet"] for c in self._node["IPAM"]["Config"]]
+    
+    @property
+    def ip4_subnets(self):
+        return [i for i in self.get_subnets() if ":" not in i]
+    
+    @property
+    def ip6_subnets(self):
+        return [i for i in self.get_subnets() if ":" in i]
     
     @property
     def containers(self):
@@ -233,7 +240,7 @@ class DockerHandler(object):
         for n in self.client.containers():
             cfg = ContainerConfig(n)
             containers.append((cfg.id, cfg))
-        containers.sort(key=lambda x:x[1].created_at, reverse=False)
+        containers.sort(key=lambda x:x[1].created_at, reverse=True)
         return OrderedDict(containers)
     
     def load_containers(self):
@@ -242,17 +249,24 @@ class DockerHandler(object):
         containers = self._get_containers()
         
         nat_rules = []
+        nat6_rules = []
         docker_nat_rules = []
+        docker_nat6_rules = []
         bridge_rules = []
+        bridge6_rules = []
         isolation_rules = []
+        isolation6_rules = []
         
         for n in networks.values():
             if n.is_bridge:
-                for subnet in n.subnets:
-                    nat_rules.append("-A POSTROUTING -o %s -m addrtype --src-type LOCAL -j MASQUERADE" % n.iface)
-                    if n.nat:
-                        nat_rules.append("-A POSTROUTING -s %s ! -o %s -j MASQUERADE" % (subnet, n.iface))
+                #TODO add common rules to ip6tables
+                nat_rules.append("-A POSTROUTING -o %s -m addrtype --src-type LOCAL -j MASQUERADE" % n.iface)
                 
+                if n.nat:
+                    for subnet in n.ip4_subnets:
+                        nat_rules.append("-A POSTROUTING -s %s ! -o %s -j MASQUERADE" % (subnet, n.iface))
+                    for subnet in n.ip6_subnets:
+                        nat6_rules.append("-A POSTROUTING -s %s ! -o %s -j MASQUERADE" % (subnet, n.iface))
                 
                 bridge_rules.append("-A FORWARD -o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = n.iface))
                 bridge_rules.append("-A FORWARD -o {iface} -j DOCKER".format(iface = n.iface))
@@ -273,44 +287,77 @@ class DockerHandler(object):
         
         # for forwarding, docker always uses address from sorted list of bridge network interfaces
         for cfg in containers.values():
-            ip_conf = None
+            ip4_conf = ip6_conf = None
             for i in filter(lambda x:networks[x["network_name"]].is_bridge, cfg.ip_addresses):
-                ip_conf = i
-                break
+                if not ip4_conf and i["ipv4"]:
+                    ip4_conf = i
+                if not ip6_conf and i["ipv6"]:
+                    ip6_conf = i
+                    # if both ipv4 and ipv6 addresses are found, Docker uses that network
+                    if i["ipv4"]:
+                        ip4_conf = i
+                
+                if ip6_conf and ip4_conf:
+                    break
             else:
                 # when there is no bridge network and only overlay is available,
                 # docker implictly uses docker_gwbridge (it is not reported in container inspect data)
                 # so we have to find its ip address in network data
                 
+                # TODO: check ipv6 failover on docker_gwbridge
+                
                 ip_conf = networks["docker_gwbridge"].containers.get(cfg.id)
+                if ip_conf:
+                    if ip_conf["ipv6"]:
+                        ip6_conf = ip_conf
+                    if ip_conf["ipv4"]:
+                        ip4_conf = ip_conf
             
             #TODO: ipv6
             #TODO: check udp
-            if ip_conf:
+            if ip4_conf or ip6_conf:
                 for p in cfg.ports:
-                    if ip_conf["ipv4"]:
+                    if ip4_conf:
                         nat_rules.append("-A POSTROUTING -s {ip}/32 -d {ip}/32 -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
-                            ip = ip_conf["ipv4"].addr,
+                            ip = ip4_conf["ipv4"].addr,
                             protocol = p.protocol,
                             port = p.private_port
                         ))
                         docker_nat_rules.append("-A DOCKER -p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
-                            ip = ip_conf["ipv4"].addr,
+                            ip = ip4_conf["ipv4"].addr,
                             protocol = p.protocol,
                             private_port = p.private_port,
                             port = p.port
                         ))
                         
                         bridge_rules.append("-A DOCKER -d {ip}/32 ! -i {iface} -o {iface} -p {protocol}  -m {protocol}  --dport {private_port} -j ACCEPT".format(
-                            ip = ip_conf["ipv4"].addr,
-                            iface = networks[ip_conf["network_name"]].iface,
+                            ip = ip4_conf["ipv4"].addr,
+                            iface = networks[ip4_conf["network_name"]].iface,
+                            protocol = p.protocol,
+                            private_port = p.private_port,
+                        ))
+                    if ip6_conf:
+                        nat6_rules.append("-A POSTROUTING -s {ip}/128 -d {ip}/128 -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
+                            ip = ip6_conf["ipv6"].addr,
+                            protocol = p.protocol,
+                            port = p.private_port
+                        ))
+                        docker_nat6_rules.append("-A DOCKER -p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
+                            ip = "[%s]" % ip6_conf["ipv6"].addr,
+                            protocol = p.protocol,
+                            private_port = p.private_port,
+                            port = p.port
+                        ))
+                        
+                        bridge6_rules.append("-A DOCKER -d {ip}/128 ! -i {iface} -o {iface} -p {protocol}  -m {protocol}  --dport {private_port} -j ACCEPT".format(
+                            ip = ip6_conf["ipv6"].addr,
+                            iface = networks[ip6_conf["network_name"]].iface,
                             protocol = p.protocol,
                             private_port = p.private_port,
                         ))
         
-        
-        rules = nat_rules + docker_nat_rules
-        rules = bridge_rules + isolation_rules
+        rules = nat_rules #+ docker_nat_rules + bridge_rules + isolation_rules
+        rules = nat6_rules + docker_nat6_rules + bridge6_rules + isolation6_rules
         
         for r in rules:
             print(r)
