@@ -61,97 +61,58 @@ class IPAddress(object):
             self.prefix_len = int(prefix_len)
     
 class NetworkConfig(object):
-    def __init__(self, node):
-        super(NetworkConfig, self).__init__()
-        self._node = node
     
     DRIVER_BRIDGE = 'bridge'
     DRIVER_OVERLAY = 'overlay'
     DRIVER_NULL = 'null'
     DRIVER_HOST = 'host'
     
-    @property
-    def name(self):
-        return self._node["Name"]
+    def __init__(self, node):
+        super(NetworkConfig, self).__init__()
+        self._read(node)
     
-    @property
-    def created_at(self):
-        return self._node["Created"]
-    
-    @property
-    def uses_ipv6(self):
-        return self._node["EnableIPv6"]
-    
-    @property
-    def is_ingress(self):
-        return self._node['Ingress']
-    
-    @property
-    def is_bridge(self):
-        return self.driver == self.DRIVER_BRIDGE
-    
-    @property
-    def is_overlay(self):
-        return self.driver == self.DRIVER_OVERLAY
-    
-    @property
-    def short_id(self):
-        return self.id[:12]
-    
-    @property
-    def id(self):
-        return self._node["Id"]
-    
-    @property
-    def driver(self):
-        return self._node["Driver"]
-    
-    @property
-    def nat(self):
+    def _read(self, node):
+        self.name = node["Name"]
+        self.created_at = node["Created"]
+        self.uses_ipv6 = node["EnableIPv6"]
+        self.is_ingress = node['Ingress']
+        self.driver = node["Driver"]
+        self.id = node["Id"]
+        self.attachable = node['Attachable']
+        
+        self.short_id = self.id[:12]
+        self.is_bridge = self.driver == self.DRIVER_BRIDGE
+        self.is_overlay = self.driver == self.DRIVER_OVERLAY
+        
+        self.icc = self.nat = None
         if self.is_bridge:
-            return self.get_bool_option("com.docker.network.bridge.enable_ip_masquerade", True)
-    
-    @property
-    def icc(self):
-        if self.is_bridge:
-            return self.get_bool_option("com.docker.network.bridge.enable_icc", True)
-    
-    def get_option(self, name, default=None):
-        if name in self._node['Options']:
-            return self._node['Options'][name]
+            self.nat = self.get_bool_option(node, "com.docker.network.bridge.enable_ip_masquerade", True)
+            self.icc = self.get_bool_option(node, "com.docker.network.bridge.enable_icc", True)
+        
+        self.subnets = tuple(c["Subnet"] for c in node["IPAM"]["Config"])
+        
+        self.iface = self._read_iface(node)
+        self.containers = self._read_containers(node)
+
+    def get_option(self, node, name, default=None):
+        if name in node['Options']:
+            return node['Options'][name]
         return default
     
-    def get_bool_option(self, name, default=None):
-        return self.get_option(name, default) in ("true", True)
+    def get_bool_option(self, node, name, default=None):
+        return self.get_option(node, name, default) in ("true", True)
     
-    @property
-    def attachable(self):
-        return self._node['Attachable']
-    
-    @property
-    def iface(self):
+    def _read_iface(self, node):
         if self.is_bridge:
-            return self.get_option("com.docker.network.bridge.name", "br-%s" % self.short_id)
+            return self.get_option(node, "com.docker.network.bridge.name", "br-%s" % self.short_id)
         elif not self.attachable:
             return None
         
         raise Exception("Not implemented")
     
-    def get_subnets(self):
-        return [c["Subnet"] for c in self._node["IPAM"]["Config"]]
-    
-    @property
-    def ip4_subnets(self):
-        return [i for i in self.get_subnets() if ":" not in i]
-    
-    @property
-    def ip6_subnets(self):
-        return [i for i in self.get_subnets() if ":" in i]
-    
-    @property
-    def containers(self):
+    def _read_containers(self, node):
         ret = {}
-        for k,c in self._node["Containers"].items():
+        for k,c in node["Containers"].items():
             ret[k] = {
                 "container_id": k,
                 "network_name": self.name,
@@ -159,6 +120,15 @@ class NetworkConfig(object):
                 "ipv6": IPAddress(c["IPv6Address"]) if c["IPv6Address"] else None
             }
         return ret
+    
+    @property
+    def ip4_subnets(self):
+        return [i for i in self.subnets if ":" not in i]
+    
+    @property
+    def ip6_subnets(self):
+        return [i for i in self.subnets if ":" in i]
+    
 
 class PortConfig(object):
     def __init__(self, proto, port, private_port, ip=None):
