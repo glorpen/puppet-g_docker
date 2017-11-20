@@ -73,4 +73,22 @@ class g_docker::firewall::script {
     source => 'puppet:///modules/g_docker/dockertables.py',
     mode => 'a=rx,u+w'
   }
+  
+  docker_network { 'bridge':
+    ensure   => absent,
+  }->
+  docker_network { 'local':
+    ensure   => present,
+    driver   => 'bridge',
+    subnet   => ['172.17.0.0/16', 'fd00:abcd::/48'],
+    gateway  => ['172.17.0.1', 'fd00:abcd::1'],
+    options => [
+      "com.docker.network.bridge.default_bridge=true",
+      "com.docker.network.bridge.enable_icc=true",
+      "com.docker.network.bridge.enable_ip_masquerade=true",
+      "com.docker.network.bridge.host_binding_ipv4=0.0.0.0",
+      "com.docker.network.bridge.name=docker0",
+      "com.docker.network.driver.mtu=1500"
+    ]
+  }
 }
