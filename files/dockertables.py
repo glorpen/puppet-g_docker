@@ -22,6 +22,7 @@ from collections import OrderedDict
 import itertools
 import contextlib
 import copy
+import subprocess
 
 #print(json.encoder.JSONEncoder(indent=2).encode(self._node))
 
@@ -318,6 +319,27 @@ class RuleSet(object):
     
     __iter__ = filter
 
+class Iptables(object):
+    def __init__(self, ip="4"):
+        super(Iptables, self).__init__()
+        #self.logger = logging.getLogger(self.__class__.__name__)
+        self._bin = "iptables" if ip == "4" else "ip6tables"
+    
+    def append(self, rule):
+        self._cmd("-t %s -A %s %s" % (rule._table, rule._chain, rule._data))
+    
+    def insert(self, pos, rule, ip_type):
+        self._cmd("-t %s -I %s %d %s" % (rule._table, rule._chain, pos, rule._data))
+    
+    def delete(self, table, chain, pos):
+        self._cmd("-t %s -D %s %d" % (table, chain, pos))
+    
+    def flush(self, table, chain):
+        self._cmd("-t %s -F %s" % (table, chain))
+    
+    def _cmd(self, args, ipv6=False, ipv4=False):
+        subprocess.check_call("%s %s" % (self._bin, args), shell=True)
+
 class DockerHandler(object):
     
     client = None
@@ -532,8 +554,21 @@ class DockerHandler(object):
         #    print(r)
         #return
         
-        for r in self._rules.filter():
-            print(r)
+        for ip in ["4","6"]:
+            iptables = Iptables(ip)
+            
+            iptables.flush('nat', self.chain_nat_docker)
+            iptables.flush('nat', self.chain_nat_postrouting)
+            iptables.flush('filter', self.chain_filter_docker)
+            iptables.flush('filter', self.chain_filter_forward)
+            iptables.flush('filter', self.chain_filter_isolation)
+        
+            rules = self._rules.filter(
+                ipv4=True if ip=="4" else None,
+                ipv6=True if ip=="6" else None
+            )
+            for r in rules:
+                iptables.append(r)
     
     def on_disconnect(self, container_id):
         if container_id not in self._hosts_cache:
