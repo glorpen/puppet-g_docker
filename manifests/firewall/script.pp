@@ -67,4 +67,10 @@ class g_docker::firewall::script {
     jump => 'DOCKER-FORWARD',
     proto    => 'all'
   }
+
+  file { '/usr/local/bin/docker-firewall':
+    ensure => 'file',
+    source => 'puppet:///modules/g_docker/dockertables.py',
+    mode => 'a=rx,u+w'
+  }
 }
