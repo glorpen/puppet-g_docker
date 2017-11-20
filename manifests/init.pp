@@ -1,5 +1,5 @@
 class g_docker(
-  Enum['noop','native'] $firewall_mode = 'native',
+  Enum['noop','native','script'] $firewall_mode = 'noop',
   String $data_path = '/mnt/docker',
   String $basesize,
   String $vg_name,
