@@ -1,5 +1,5 @@
 class g_docker(
-  Boolean $manage_firewall = true,
+  Enum['noop','native'] $firewall_mode = 'native',
   String $data_path = '/mnt/docker',
   String $basesize,
   String $vg_name,
@@ -9,9 +9,11 @@ class g_docker(
   Hash $instances = {},
   Hash $registries = {}
 ){
-  if $manage_firewall {
-    class {::g_docker::firewall: }
-  }
+  
+  include ::stdlib
+  
+  $firewall_base = "::g_docker::firewall::${firewall_mode}"
+  contain $firewall_base
 
   $puppetizer_conf_path = '/etc/docker/puppetizer.conf.d'
 
@@ -37,14 +39,18 @@ class g_docker(
     size => $thinpool_size,
     metadata_size => $thinpool_metadata_size
   }->
-  class {'docker':
+  class { ::docker:
     log_driver => 'syslog',
     storage_driver => 'devicemapper',
     dm_basesize => $basesize,
     storage_vg => $vg_name,
     dm_thinpooldev => "/dev/mapper/${vg_name}-docker--thin",
     # TODO: function to normalize dev name for LVM 
-    dm_blkdiscard => true
+    dm_blkdiscard => true,
+    
+    extra_parameters => ['--userland-proxy=false'],
+    ip_forward => true,
+    * => getvar("${firewall_base}::docker_config")
   }
   
   create_resources(::g_docker::run, $instances)
