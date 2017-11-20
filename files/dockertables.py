@@ -86,10 +86,12 @@ class NetworkConfig(object):
         self.is_bridge = self.driver == self.DRIVER_BRIDGE
         self.is_overlay = self.driver == self.DRIVER_OVERLAY
         
+        self.is_default = False
         self.icc = self.nat = None
         if self.is_bridge:
             self.nat = self.get_bool_option(node, "com.docker.network.bridge.enable_ip_masquerade", True)
             self.icc = self.get_bool_option(node, "com.docker.network.bridge.enable_icc", True)
+            self.is_default = self.get_bool_option(node, "com.docker.network.bridge.default_bridge", False)
         
         self.subnets = tuple(c["Subnet"] for c in node["IPAM"]["Config"])
         
@@ -433,7 +435,8 @@ class DockerHandler(object):
             r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
             r.ipv6(network.uses_ipv6)
             
-        if network.nat:
+        #FIXME: when docker is started with iptables=false, ip-masq is always false too, so default bridge has no nat
+        if network.nat or network.is_default:
             grouped_subnets = [["ipv4", network.ip4_subnets], ["ipv6", network.ip6_subnets]]
             for ip_type, subnets in grouped_subnets:
                 for subnet in subnets:
