@@ -7,7 +7,8 @@ class g_docker(
   String $thinpool_size,
   String $thinpool_metadata_size,
   Hash $instances = {},
-  Hash $registries = {}
+  Hash $registries = {},
+  String $ipv6_cidr = undef
 ){
   
   include ::stdlib
@@ -33,6 +34,13 @@ class g_docker(
     recurse => true
   }
   
+  if $ipv6_cidr == undef {
+    $_docker_ipv6_params = []
+  } else {
+    $_docker_ipv6_params = ['--ipv6', '--fixed-cidr-v6', $ipv6_cidr]
+  }
+  $_docker_params = concat(['--userland-proxy=false'], $_docker_ipv6_params)
+  
   # /var/lib/docker -> mostly for volumes data
   g_server::volumes::thinpool { $thinpool_name:
     vg_name => $vg_name,
@@ -48,7 +56,7 @@ class g_docker(
     # TODO: function to normalize dev name for LVM 
     dm_blkdiscard => true,
     
-    extra_parameters => ['--userland-proxy=false'],
+    extra_parameters => $_docker_params,
     ip_forward => true,
     * => getvar("${firewall_base}::docker_config")
   }
