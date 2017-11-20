@@ -285,6 +285,7 @@ class RuleSet(object):
     
     GROUP_NETWORK = 1
     GROUP_CONTAINER = 2
+    GROUP_LAST = 9
     
     _needs_sorting = True
     
@@ -323,6 +324,12 @@ class DockerHandler(object):
     
     _networks = None
     _containers = None
+    
+    chain_filter_forward = 'DOCKER-FORWARD'
+    chain_nat_postrouting = 'DOCKER-POSTROUTING'
+    chain_filter_isolation = 'DOCKER-ISOLATION'
+    chain_nat_docker = 'DOCKER'
+    chain_filter_docker = 'DOCKER'
     
     def __init__(self):
         super(DockerHandler, self).__init__()
@@ -400,7 +407,7 @@ class DockerHandler(object):
             return
         
         with self._rules.new() as r:
-            r.rule("nat", "POSTROUTING", "-o %s -m addrtype --src-type LOCAL -j MASQUERADE" % network.iface)
+            r.rule("nat", self.chain_nat_postrouting, "-o %s -m addrtype --src-type LOCAL -j MASQUERADE" % network.iface)
             r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
             r.ipv6(network.uses_ipv6)
             
@@ -409,27 +416,27 @@ class DockerHandler(object):
             for ip_type, subnets in grouped_subnets:
                 for subnet in subnets:
                     with self._rules.new() as r:
-                        r.rule("nat", "POSTROUTING", "-s %s ! -o %s -j MASQUERADE" % (subnet, network.iface))
+                        r.rule("nat", self.chain_nat_postrouting, "-s %s ! -o %s -j MASQUERADE" % (subnet, network.iface))
                         r.group(RuleSet.GROUP_NETWORK).tags(network=network.id)
                         r.ip_type(ip_type)
         
         with self._rules.new() as r:
-            r.rule("filter", "FORWARD", "-o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = network.iface))
+            r.rule("filter", self.chain_filter_forward, "-o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = network.iface))
             r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
             r.ipv6(network.uses_ipv6)
         
         with self._rules.new() as r:
-            r.rule("filter", "FORWARD", "-o {iface} -j DOCKER".format(iface = network.iface))
+            r.rule("filter", self.chain_filter_forward, "-o {iface} -j DOCKER".format(iface = network.iface))
             r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
             r.ipv6(network.uses_ipv6)
         
         with self._rules.new() as r:
-            r.rule("filter", "FORWARD", "-i {iface} ! -o {iface} -j ACCEPT".format(iface = network.iface))
+            r.rule("filter", self.chain_filter_forward, "-i {iface} ! -o {iface} -j ACCEPT".format(iface = network.iface))
             r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
             r.ipv6(network.uses_ipv6)
         
         with self._rules.new() as r:
-            r.rule("filter", "FORWARD", "-i {iface} -o {iface} -j {action}".format(iface = network.iface, action="ACCEPT" if network.icc else "DROP"))
+            r.rule("filter", self.chain_filter_forward, "-i {iface} -o {iface} -j {action}".format(iface = network.iface, action="ACCEPT" if network.icc else "DROP"))
             r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
             r.ipv6(network.uses_ipv6)
         
@@ -438,7 +445,7 @@ class DockerHandler(object):
                 continue
         
             with self._rules.new() as r:
-                r.rule("filter", "DOCKER-ISOLATION", "-i {src} -o {dst} -j DROP".format(src=network.iface, dst=dst.iface))
+                r.rule("filter", self.chain_filter_isolation, "-i {src} -o {dst} -j DROP".format(src=network.iface, dst=dst.iface))
                 r.group(RuleSet.GROUP_NETWORK).tags(network=(network.id, dst.id))
                 r.ipv4()
                 
@@ -465,7 +472,7 @@ class DockerHandler(object):
                         addr_escaped = "[%s]" % addr 
                     
                     with self._rules.new() as r:
-                        r.rule("nat", "POSTROUTING", "-s {ip}/{prefix} -d {ip}/{prefix} -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
+                        r.rule("nat", self.chain_nat_postrouting, "-s {ip}/{prefix} -d {ip}/{prefix} -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
                             ip = addr,
                             protocol = p.protocol,
                             port = p.private_port,
@@ -475,7 +482,7 @@ class DockerHandler(object):
                         r.ip_type(ip_type)
                     
                     with self._rules.new() as r:
-                        r.rule("nat", "DOCKER", "-p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
+                        r.rule("nat", self.chain_nat_docker, "-p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
                             ip = addr_escaped,
                             protocol = p.protocol,
                             private_port = p.private_port,
@@ -486,7 +493,7 @@ class DockerHandler(object):
                     networks = self._get_networks()
                     
                     with self._rules.new() as r:
-                        r.rule("filter", "DOCKER", "-d {ip}/{prefix} ! -i {iface} -o {iface} -p {protocol} -m {protocol} --dport {private_port} -j ACCEPT".format(
+                        r.rule("filter", self.chain_filter_docker, "-d {ip}/{prefix} ! -i {iface} -o {iface} -p {protocol} -m {protocol} --dport {private_port} -j ACCEPT".format(
                             ip = addr,
                             iface = networks[ip_conf["network_name"]].iface,
                             protocol = p.protocol,
@@ -496,6 +503,18 @@ class DockerHandler(object):
                         r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id).ip_type(ip_type)
     
     def load(self):
+        
+        with self._rules.new() as r:
+            r.rule("filter", self.chain_filter_isolation, "-j RETURN")
+            r.group(RuleSet.GROUP_LAST).ip_any()
+        
+        with self._rules.new() as r:
+            r.rule("nat", self.chain_nat_postrouting, "-j RETURN")
+            r.group(RuleSet.GROUP_LAST).ip_any()
+        
+        with self._rules.new() as r:
+            r.rule("filter", self.chain_filter_forward, "-j RETURN")
+            r.group(RuleSet.GROUP_LAST).ip_any()
         
         for n in self._get_networks().values():
             self.add_network_rules(n)
