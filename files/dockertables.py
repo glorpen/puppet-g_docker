@@ -116,14 +116,14 @@ class NetworkConfig(object):
         raise Exception("Not implemented")
     
     def _read_containers(self, node):
-        ret = {}
+        ret = OrderedDict()
         for k,c in node["Containers"].items():
-            ret[k] = {
-                "container_id": k,
-                "network_name": self.name,
-                "ipv4": IPAddress(c["IPv4Address"]) if c["IPv4Address"] else None,
-                "ipv6": IPAddress(c["IPv6Address"]) if c["IPv6Address"] else None
-            }
+            ret[k] = ContainerNetworkConfig(
+                container_id = k,
+                network_id = self.id,
+                ipv4 = IPAddress(c["IPv4Address"]) if c["IPv4Address"] else None,
+                ipv6 = IPAddress(c["IPv6Address"]) if c["IPv6Address"] else None
+            )
         return ret
     
     @property
@@ -147,6 +147,15 @@ class PortConfig(object):
     def __repr__(self):
         return "%s:%d:%s" % (self.ip, self.port, self.protocol)
 
+class ContainerNetworkConfig(object):
+    def __init__(self, container_id, network_id, ipv4, ipv6):
+        super(ContainerNetworkConfig, self).__init__()
+        
+        self.ipv4 = ipv4
+        self.ipv6 = ipv6
+        self.network_id = network_id
+        self.container_id = container_id
+
 class ContainerConfig(object):
     def __init__(self, node):
         super(ContainerConfig, self).__init__()
@@ -157,10 +166,10 @@ class ContainerConfig(object):
         self.created_at = node["Created"]
         self.id = node["Id"]
         self.ports = tuple(PortConfig(i['Type'], i['PublicPort'], i['PrivatePort'], i['IP']) for i in node["Ports"])
-        self.ip_addresses = self._read_ip_addresses(node)
+        self.networks = self._read_networks(node)
     
-    def _read_ip_addresses(self, node):
-        ret = []
+    def _read_networks(self, node):
+        ret = OrderedDict()
         for name, conf in node["NetworkSettings"]["Networks"].items():
             
             # skip invalid entries
@@ -168,11 +177,12 @@ class ContainerConfig(object):
             if not conf["NetworkID"]:
                 continue
             
-            ret.append({
-                "network_name": name,
-                "ipv4": IPAddress(conf["IPAddress"], conf["IPPrefixLen"]) if conf["IPAddress"] else None,
-                "ipv6": IPAddress(conf["GlobalIPv6Address"], conf["GlobalIPv6PrefixLen"]) if conf["GlobalIPv6Address"] else None,
-            })
+            ret[conf["NetworkID"]] = ContainerNetworkConfig(
+                container_id = self.id,
+                network_id = conf["NetworkID"],
+                ipv4 = IPAddress(conf["IPAddress"], conf["IPPrefixLen"]) if conf["IPAddress"] else None,
+                ipv6 = IPAddress(conf["GlobalIPv6Address"], conf["GlobalIPv6PrefixLen"]) if conf["GlobalIPv6Address"] else None
+            )
         return ret
 
 class Rule(object):
@@ -361,7 +371,6 @@ class DockerHandler(object):
     
     client = None
     
-    _networks = None
     _containers = None
     
     chain_filter_forward = 'DOCKER-FORWARD'
@@ -376,6 +385,8 @@ class DockerHandler(object):
         
         self.pretend = pretend
         self._rules = RuleSet()
+        
+        self._networks = OrderedDict()
     
     def setup(self):
         try:
@@ -389,17 +400,15 @@ class DockerHandler(object):
         
         self.load()
     
-    def _get_networks(self):
-        if self._networks is None:
-            networks = []
-            for data in self.client.networks():
-                n = NetworkConfig(data)
-                networks.append((n.name, n))
-            
-            networks.sort(key=lambda x:x[1].created_at, reverse=True)
-            self._networks = OrderedDict(networks)
-        return self._networks
-    
+    def fetch_networks(self):
+        networks = []
+        for data in self.client.networks():
+            n = NetworkConfig(data)
+            networks.append(n)
+        
+        networks.sort(key=lambda x:x.created_at, reverse=True)
+        return networks
+        
     def _get_containers(self):
         if self._containers is None:
             containers = []
@@ -410,18 +419,22 @@ class DockerHandler(object):
             self._containers = OrderedDict(containers)
         return self._containers
     
+    def get_gwbridge_network(self):
+        for n in self._networks.values():
+            if n.name == "docker_gwbridge":
+                return n
+    
     def _get_ip_conf_for_container(self, container):
         # for forwarding, docker always uses address from sorted list of bridge network interfaces
-        networks = self._get_networks()
         
         ip4_conf = ip6_conf = None
-        for i in filter(lambda x:networks[x["network_name"]].is_bridge, container.ip_addresses):
-            if not ip4_conf and i["ipv4"]:
+        for i in filter(lambda x:self._networks[x.network_id].is_bridge, container.networks.values()):
+            if not ip4_conf and i.ipv4:
                 ip4_conf = i
-            if not ip6_conf and i["ipv6"]:
+            if not ip6_conf and i.ipv6:
                 ip6_conf = i
                 # if both ipv4 and ipv6 addresses are found, Docker uses that network
-                if i["ipv4"]:
+                if i.ipv4:
                     ip4_conf = i
             
             if ip6_conf and ip4_conf:
@@ -433,16 +446,19 @@ class DockerHandler(object):
             
             # TODO: check ipv6 failover on docker_gwbridge
             
-            ip_conf = networks["docker_gwbridge"].containers.get(container.id)
-            if ip_conf:
-                if ip_conf["ipv6"]:
-                    ip6_conf = ip_conf
-                if ip_conf["ipv4"]:
-                    ip4_conf = ip_conf
+            gwbridge = self.get_gwbridge_network()
+            if gwbridge:
+                ip_conf = gwbridge.containers.get(container.id)
+                if ip_conf:
+                    if ip_conf.ipv6 is not None:
+                        ip6_conf = ip_conf
+                    if ip_conf.ipv4 is not None:
+                        ip4_conf = ip_conf
         
         return ip4_conf, ip6_conf
     
     def add_network_rules(self, network):
+        # only bridge networks are supported
         if not network.is_bridge:
             return
         
@@ -481,17 +497,22 @@ class DockerHandler(object):
             r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
             r.ipv6(network.uses_ipv6)
         
-        for dst in self._get_networks().values():
-            if not dst.is_bridge or dst is network:
+        '''
+        Networks are added in linear fashion by add_network method so n-th network will generate all related rules.
+        When network is deleted, it will remove rules that possibly were not generated by it, but when added again, they will be generated.
+        '''
+        for other in self._networks.values():
+            if other is network or not other.is_bridge:
                 continue
-        
-            with self._rules.new() as r:
-                r.rule("filter", self.chain_filter_isolation, "-i {src} -o {dst} -j DROP".format(src=network.iface, dst=dst.iface))
-                r.group(RuleSet.GROUP_NETWORK).tags(network=(network.id, dst.id))
-                r.ipv4()
-                
-                # don't add ipv6 rules to non-ipv6 aware networks
-                r.ipv6(network.uses_ipv6 and dst.uses_ipv6)
+            
+            for src, dst in [[network, other], [other, network]]:
+                with self._rules.new() as r:
+                    r.rule("filter", self.chain_filter_isolation, "-i {src} -o {dst} -j DROP".format(src=src.iface, dst=dst.iface))
+                    r.group(RuleSet.GROUP_NETWORK).tags(network=(src.id, dst.id))
+                    r.ipv4()
+                    
+                    # don't add ipv6 rules to non-ipv6 aware networks
+                    r.ipv6(src.uses_ipv6 and dst.uses_ipv6)
     
     def add_container_rules(self, container):
         ip4_conf, ip6_conf = self._get_ip_conf_for_container(container)
@@ -504,7 +525,7 @@ class DockerHandler(object):
                     if ip_conf is None:
                         continue
                     
-                    addr = ip_conf[ip_type].addr
+                    addr = getattr(ip_conf, ip_type).addr
                     if ip_type == 'ipv4':
                         prefix = "32"
                         addr_escaped = addr
@@ -531,17 +552,19 @@ class DockerHandler(object):
                         ))
                         r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id).ip_type(ip_type)
                     
-                    networks = self._get_networks()
-                    
                     with self._rules.new() as r:
                         r.rule("filter", self.chain_filter_docker, "-d {ip}/{prefix} ! -i {iface} -o {iface} -p {protocol} -m {protocol} --dport {private_port} -j ACCEPT".format(
                             ip = addr,
-                            iface = networks[ip_conf["network_name"]].iface,
+                            iface = self._networks[ip_conf.network_id].iface,
                             protocol = p.protocol,
                             private_port = p.private_port,
                             prefix = prefix
                         ))
                         r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id).ip_type(ip_type)
+    
+    def add_network(self, network):
+        self._networks[network.id] = network
+        self.add_network_rules(network)
     
     def load(self):
         
@@ -557,11 +580,11 @@ class DockerHandler(object):
             r.rule("filter", self.chain_filter_forward, "-j RETURN")
             r.group(RuleSet.GROUP_LAST).ip_any()
         
-        for n in self._get_networks().values():
-            self.add_network_rules(n)
+        for n in self.fetch_networks():
+            self.add_network(n)
         
-        for c in self._get_containers().values():
-            self.add_container_rules(c)
+        #for c in self._get_containers().values():
+        #    self.add_container_rules(c)
                     
         # https://docs.docker.com/engine/userguide/networking/default_network/ipv6/#how-ipv6-works-on-docker
         # TODO: info about ip6 forward sysctl in docs
