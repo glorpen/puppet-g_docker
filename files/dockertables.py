@@ -23,6 +23,7 @@ import itertools
 import contextlib
 import copy
 import subprocess
+import argparse
 
 #print(json.encoder.JSONEncoder(indent=2).encode(self._node))
 
@@ -222,7 +223,7 @@ class Rule(object):
     def __repr__(self):
         return "-t %s -A %s %s" % (self._table, self._chain, self._data)
 
-def _filter_rules(rules, ipv4=None, ipv6=None, has_tag=None, has_tag_with_value=None, f=None):
+def _filter_rules(rules, ipv4=None, ipv6=None, has_tag=None, has_tag_value=None, f=None):
     for item in rules:
         
         if f is None:
@@ -234,20 +235,17 @@ def _filter_rules(rules, ipv4=None, ipv6=None, has_tag=None, has_tag_with_value=
             continue
         if ipv6 is not None and ipv6 != i._ipv6:
             continue
-        if has_tag is not None and has_tag not in i._tags:
-            continue
-        if has_tag_with_value is not None:
-            for k,v in has_tag_with_value.items():
-                if not i._tags.has(k):
-                    break
-                if isinstance(v, list):
-                    if v not in i._tags[k]:
-                        break
-                else:
-                    if v != i._tags[k]:
-                        break
-            else:
+        if has_tag is not None:
+            if has_tag not in i._tags:
                 continue
+            if has_tag_value is not None:
+                v = i._tags[has_tag]
+                if isinstance(v, (list, tuple)):
+                    if has_tag_value not in v:
+                        continue
+                else:
+                    if has_tag_value != v:
+                        continue
         
         yield i
 
@@ -319,12 +317,23 @@ class RuleSet(object):
     def filter(self, **kwargs):
         return _filter_rules(self.rules, **kwargs)
     
+    def remove(self, container_id=None, network_id=None):
+        rs = self.rules
+        if container_id:
+            rs = _filter_rules(rs, has_tag="container", has_tag_value=container_id)
+        if network_id:
+            rs = _filter_rules(rs, has_tag="network", has_tag_value=network_id)
+        
+        for r in tuple(rs):
+            self._rules.remove(r)
+    
     __iter__ = filter
 
 class Iptables(object):
-    def __init__(self, ip="4"):
+    def __init__(self, ip="4", pretend=False):
         super(Iptables, self).__init__()
-        #self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.pretend = pretend
         self._bin = "iptables" if ip == "4" else "ip6tables"
     
     def append(self, rule):
@@ -340,7 +349,13 @@ class Iptables(object):
         self._cmd("-t %s -F %s" % (table, chain))
     
     def _cmd(self, args, ipv6=False, ipv4=False):
-        subprocess.check_call("%s %s" % (self._bin, args), shell=True)
+        cmd = "%s %s" % (self._bin, args)
+        if self.pretend:
+            self.logger.debug("Would run %r", cmd)
+        else:
+            self.logger.debug("Running %r", cmd)
+            subprocess.check_call(cmd, shell=True)
+        
 
 class DockerHandler(object):
     
@@ -355,10 +370,11 @@ class DockerHandler(object):
     chain_nat_docker = 'DOCKER'
     chain_filter_docker = 'DOCKER'
     
-    def __init__(self):
+    def __init__(self, pretend=False):
         super(DockerHandler, self).__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         
+        self.pretend = pretend
         self._rules = RuleSet()
     
     def setup(self):
@@ -558,7 +574,7 @@ class DockerHandler(object):
         #return
         
         for ip in ["4","6"]:
-            iptables = Iptables(ip)
+            iptables = Iptables(ip, pretend=self.pretend)
             
             iptables.flush('nat', self.chain_nat_docker)
             iptables.flush('nat', self.chain_nat_postrouting)
@@ -573,36 +589,53 @@ class DockerHandler(object):
             for r in rules:
                 iptables.append(r)
     
-    def on_disconnect(self, container_id):
-        if container_id not in self._hosts_cache:
-            self.logger.debug("Disconnected container %r was not tracked, ignoring", container_id)
-            return
-        name = self._hosts_cache[container_id]
-        self.logger.info("Removing entry %r as container %r disconnected", name, container_id)
-        del self._hosts_cache[container_id]
-            
-        self.dns_updater.remove_host(name)
-    
-    def on_connect(self, container_id, name, ipv4s, ipv6s):
-        unique_name = self._deduplicate_container_name(name)
-        self.logger.info("Adding new entry %r:{ipv4:%r, ipv6:%r} for container %r", unique_name, ipv4s, ipv6s, container_id)
-        self._hosts_cache[container_id] = unique_name
-        self.dns_updater.add_host(unique_name, ipv4s, ipv6s)
-        
     def handle_event(self, event):
-        if event["Type"] == "network":
-            print(event)
-#             if event["Action"] == "connect":
-#                 container_id = event["Actor"]["Attributes"]["container"]
-#                 #self.logger.debug("Handling connect event for container %r", container_id)
-#                 #info = ContainerInfo.from_container(self.client.containers.get(container_id))
-#                 #self.on_connect(container_id, info.name, info.ipv4s, info.ipv6s)
-#             
-#             if event["Action"] == "disconnect":
-#                 #container_id = event["Actor"]["Attributes"]["container"]
-#                 #self.logger.debug("Handling disconnect event for container %r", container_id)
-#                 #self.on_disconnect(container_id)
-#     
+        #if event["Type"] == "container":
+            # event["Action"] == "die"
+            # create, remove, start, stop - update container
+        #    print(event)
+        
+        d = self._rules.diff()
+        with d:
+            if event["Type"] == "network":
+                network_id = event["Actor"]['ID']
+                """ container start/stop triggers it too """
+                if event["Action"] in ("connect", "disconnect"):
+                    container_id = event["Actor"]["Attributes"]["container"]
+                    print(event)
+                
+                if event["Action"] == "create":
+                    self.logger.info("Adding network %r", network_id)
+                    network_config = NetworkConfig(self.client.networks(ids=[network_id])[0])
+                    self._get_networks()[network_config.name] = network_config
+                    self.add_network_rules(network_config)
+                    # TODO: obsłużyć DOCKER-ISOLATION, aktualnie jeśli każdy network by generował ca;y zestaw to byłyby duplikaty
+                    # ale gdy dodajemy network to powinien też generować rules które nie mają jego id jako pierwszego argumentu
+                
+                """ happens only when there are no containers attached """
+                if event["Action"] == "destroy":
+                    self.logger.info("Removing network %r", network_id)
+                    
+                    del self._get_networks()[event["Actor"]["Attributes"]["name"]]
+                    self._rules.remove(network_id=network_id)
+                    
+                # on connect, disconnect - update network & container
+                # on create, remove - update network
+                #print(event)
+    #             if event["Action"] == "connect":
+    #                 container_id = event["Actor"]["Attributes"]["container"]
+    #                 #self.logger.debug("Handling connect event for container %r", container_id)
+    #                 #info = ContainerInfo.from_container(self.client.containers.get(container_id))
+    #                 #self.on_connect(container_id, info.name, info.ipv4s, info.ipv6s)
+    #             
+    #             if event["Action"] == "disconnect":
+    #                 #container_id = event["Actor"]["Attributes"]["container"]
+    #                 #self.logger.debug("Handling disconnect event for container %r", container_id)
+    #                 #self.on_disconnect(container_id)
+        for r in d.filter_removed(ipv4=True):
+            print("Removed %r" % r)
+        for r in d.filter_added(ipv4=True):
+            print("Added %r" % r)
     def run(self):
         events = self.client.events(decode=True)
         
@@ -610,7 +643,7 @@ class DockerHandler(object):
             try:
                 event = next(events)
             except docker.StopException:
-                self.logger.info("Exitting")
+                self.logger.info("Exiting")
                 return
             except Exception:
                 self.logger.info("Docker connection broken - exitting")
@@ -619,12 +652,15 @@ class DockerHandler(object):
             self.handle_event(event)
 
 if __name__ == "__main__":
-    
     logging.basicConfig(level=logging.DEBUG)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--pretend', '-p', '--noop', help="Don't do anything", action="store_true", default=False)
     
-    d = DockerHandler()
+    ns = parser.parse_args()
+    
+    d = DockerHandler(pretend=ns.pretend)
     d.setup()
-    #d.run()
+    d.run()
     
     #nsenter --net=/var/run/docker/netns/ingress_sbox iptables-save
     # czy na node0 w NS pojawią się wpisy jeśli iptables=false? - tak, dodatkowo też są w zwykłym iptables
