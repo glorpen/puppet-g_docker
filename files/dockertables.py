@@ -221,7 +221,6 @@ class Rule(object):
         if name == "ipv6":
             return self.ipv6()
     
-    # usunąć - użyć filtrowania po występujacych tagach (network/container)
     def group(self, group):
         self._group = group
         return self
@@ -231,7 +230,10 @@ class Rule(object):
         return self
     
     def __repr__(self):
-        return "-t %s -A %s %s" % (self._table, self._chain, self._data)
+        return "-t %s -A %s %s [%d:%d:%d]" % (self._table, self._chain, self._data, self._group, self._ipv4, self._ipv6)
+    
+    def __cmp__(self, v):
+        return cmp(repr(self), repr(v))
 
 def _filter_rules(rules, ipv4=None, ipv6=None, has_tag=None, has_tag_value=None, f=None):
     for item in rules:
@@ -262,33 +264,64 @@ def _filter_rules(rules, ipv4=None, ipv6=None, has_tag=None, has_tag_value=None,
 class RuleSetDiff(object):
     def __init__(self, rule_set):
         super(RuleSetDiff, self).__init__()
-        self._rs = rule_set
+        self._rule_set = rule_set
     
     def __enter__(self):
-        self._org = copy.copy(self._rs.rules)
+        self._org = self._as_dict(self._rule_set.rules)
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._current = copy.copy(self._rs.rules)
+        self._current = self._as_dict(self._rule_set.rules)
     
+    def _enumerate_by_chain(self, rules):
+        # TODO: check ipv6/ipv4
+        chains = OrderedDict((("_ipv4", {}), ("_ipv6", {})))
+        for r in rules.values():
+            args = []
+            for proto_attr in chains.keys():
+                if getattr(r, proto_attr):
+                    k = "%s:%s" % (r._table, r._chain)
+                    chains[proto_attr][k] = chains[proto_attr].get(k, 0) + 1
+                    args.append(chains[proto_attr][k])
+                else:
+                    args.append(None)
+            
+            args.append(r)
+            
+            yield args
+    
+    def _as_dict(self, rules):
+        ret = OrderedDict()
+        for r in rules:
+            k = repr(r)
+            if k in ret:
+                raise Exception("Duplicated rule %r" % r)
+            ret[k] = r
+        return ret
+    
+    # TODO: rules już teraz się nie mogą powtarzać (przez _as_dict) więc można porzucić liczenie pozycji gdyż i tak nei zadziałą po usunieciu i dodaniu tych samych rulsów
     def get_removed_rules(self):
-        removed = set(self._org).difference(self._current)
+        """
+        Yields removed rule position in chain and rule.
+        """
+        removed = set(self._org.keys()).difference(self._current.keys())
         
-        for pos, r in enumerate(self._org):
-            if r in removed:
-                yield (pos, r)
+        for pos4, pos6, r in self._enumerate_by_chain(self._org):
+            if repr(r) in removed:
+                yield (pos4, pos6, r)
     
     def get_added_rules(self):
-        added = set(self._current).difference(self._org)
+        added = set(self._current.keys()).difference(self._org.keys())
         
-        for pos, r in enumerate(self._current):
-            if r in added:
-                yield (pos, r)    
+        for pos4, pos6, r in self._enumerate_by_chain(self._current):
+            if repr(r) in added:
+                yield (pos4, pos6, r)    
     
     def _filter(self, rules, **kwargs):
-        return _filter_rules(rules, f=lambda x:x[1], **kwargs)
+        return _filter_rules(rules, f=lambda x:x[2], **kwargs)
     
     def filter_added(self, **kwargs):
         return self._filter(self.get_added_rules(), **kwargs)
+    
     def filter_removed(self, **kwargs):
         return self._filter(self.get_removed_rules(), **kwargs)
 
@@ -312,6 +345,8 @@ class RuleSet(object):
     def rules(self):
         if self._needs_sorting:
             self._rules.sort(key=lambda x: x._group)
+            self._rules.sort(key=lambda x: x._table)
+            self._rules.sort(key=lambda x: x._chain)
         
         return self._rules
     
@@ -337,6 +372,10 @@ class RuleSet(object):
         for r in tuple(rs):
             self._rules.remove(r)
     
+    def extend(self, rules):
+        self._rules.extend(rules)
+        self._needs_sorting = True
+    
     __iter__ = filter
 
 class Iptables(object):
@@ -349,7 +388,7 @@ class Iptables(object):
     def append(self, rule):
         self._cmd("-t %s -A %s %s" % (rule._table, rule._chain, rule._data))
     
-    def insert(self, pos, rule, ip_type):
+    def insert(self, pos, rule):
         self._cmd("-t %s -I %s %d %s" % (rule._table, rule._chain, pos, rule._data))
     
     def delete(self, table, chain, pos):
@@ -371,7 +410,10 @@ class DockerHandler(object):
     
     client = None
     
-    _containers = None
+    """ When new container is added, or its networks are changed, we need to update
+    gwbridge just in case it is used by it. Data will be reloaded from API only
+    if container is using gwbridge."""
+    _gwbridge_needs_updating = False
     
     chain_filter_forward = 'DOCKER-FORWARD'
     chain_nat_postrouting = 'DOCKER-POSTROUTING'
@@ -387,6 +429,7 @@ class DockerHandler(object):
         self._rules = RuleSet()
         
         self._networks = OrderedDict()
+        self._containers = OrderedDict()
     
     def setup(self):
         try:
@@ -409,17 +452,19 @@ class DockerHandler(object):
         networks.sort(key=lambda x:x.created_at, reverse=True)
         return networks
         
-    def _get_containers(self):
-        if self._containers is None:
-            containers = []
-            for n in self.client.containers():
-                cfg = ContainerConfig(n)
-                containers.append((cfg.id, cfg))
-            containers.sort(key=lambda x:x[1].created_at, reverse=True)
-            self._containers = OrderedDict(containers)
-        return self._containers
+    def fetch_containers(self):
+        containers = []
+        for n in self.client.containers():
+            cfg = ContainerConfig(n)
+            containers.append(cfg)
+        containers.sort(key=lambda x:x.created_at, reverse=True)
+        return containers
     
     def get_gwbridge_network(self):
+        if self._gwbridge_needs_updating:
+            cfg = NetworkConfig(self.client.networks(names=["docker_gwbridge"])[0])
+            self._networks[cfg.id] = cfg
+        
         for n in self._networks.values():
             if n.name == "docker_gwbridge":
                 return n
@@ -517,7 +562,7 @@ class DockerHandler(object):
     def add_container_rules(self, container):
         ip4_conf, ip6_conf = self._get_ip_conf_for_container(container)
         
-        #TODO: check udp
+        #TODO: check if udp mode is working
         if ip4_conf or ip6_conf:
             grouped_ips = [["ipv4", ip4_conf], ["ipv6", ip6_conf]]
             for p in container.ports:
@@ -566,6 +611,36 @@ class DockerHandler(object):
         self._networks[network.id] = network
         self.add_network_rules(network)
     
+    def _apply_changes(self, diff):
+        iptables4 = Iptables("4", pretend=self.pretend)
+        iptables6 = Iptables("6", pretend=self.pretend)
+        
+        for pos4, pos6, r in reversed(list(diff.get_removed_rules())):
+            if pos4 is not None:
+                iptables4.delete(r._table, r._chain, pos4)
+            if pos6 is not None:
+                iptables6.delete(r._table, r._chain, pos6)
+        
+        for pos4, pos6, r in diff.get_added_rules():
+            if pos4 is not None:
+                iptables4.insert(pos4, r)
+            if pos6 is not None:
+                iptables6.insert(pos6, r)
+    
+    def add_container(self, container):
+        self._containers[container.id] = container
+        self.add_container_rules(container)
+    
+    def update_container(self, container):
+        self._containers[container.id] = container
+        
+        diff = self._rules.diff()
+        with diff:
+            self._rules.remove(container_id=container.id)
+            self.add_container_rules(container)
+        
+        self._apply_changes(diff)
+        
     def load(self):
         
         with self._rules.new() as r:
@@ -583,18 +658,11 @@ class DockerHandler(object):
         for n in self.fetch_networks():
             self.add_network(n)
         
-        #for c in self._get_containers().values():
-        #    self.add_container_rules(c)
-                    
+        for c in self.fetch_containers():
+            self.add_container(c)
+        
         # https://docs.docker.com/engine/userguide/networking/default_network/ipv6/#how-ipv6-works-on-docker
         # TODO: info about ip6 forward sysctl in docs
-        
-        #d = self._rules.diff()
-        #with d:
-        #    del self._rules.rules[3]
-        #for r in d.filter_removed(ipv4=True):
-        #    print(r)
-        #return
         
         for ip in ["4","6"]:
             iptables = Iptables(ip, pretend=self.pretend)
@@ -613,52 +681,60 @@ class DockerHandler(object):
                 iptables.append(r)
     
     def handle_event(self, event):
-        #if event["Type"] == "container":
-            # event["Action"] == "die"
-            # create, remove, start, stop - update container
-        #    print(event)
+        
+        # TODO: when container is stopping there is no need to update ContainerConfig on network disconnect event since it will be deleted
+        
+        """As for `_gwbridge_needs_updating`, docker does not inform about connect/disconnects to gwbridge network
+        so we have to handle it."""
         
         d = self._rules.diff()
         with d:
+            if event["Type"] == "container":
+                container_id = event["Actor"]['ID']
+                
+                if event["Action"] == 'start':
+                    self.logger.info("Adding container %r", container_id)
+                    self._gwbridge_needs_updating = True
+                    container_config = ContainerConfig(self.client.containers(filters={"id":container_id})[0])
+                    self.add_container(container_config)
+                
+                if event["Action"] == 'stop':
+                    # no need to update gwbridge since IP addr stays the same for other containers
+                    self.logger.info("Removing container %r", container_id)
+                    del self._containers[container_id]
+                    self._rules.remove(container_id=container_id)
+                    
+                # no swarm support, so no published ports changing
+            
             if event["Type"] == "network":
                 network_id = event["Actor"]['ID']
                 """ container start/stop triggers it too """
                 if event["Action"] in ("connect", "disconnect"):
+                    # currently there is no need to update config for changed network, only gwbridge matters
+                    self._gwbridge_needs_updating = True
+                    
                     container_id = event["Actor"]["Attributes"]["container"]
-                    print(event)
+                    # if container is just starting, it will not be listed in api.containers()
+                    # so handle it only if already known
+                    if container_id in self._containers:
+                        container = ContainerConfig(self.client.containers(filters={"id":container_id})[0])
+                        self.update_container(container)
                 
                 if event["Action"] == "create":
                     self.logger.info("Adding network %r", network_id)
                     network_config = NetworkConfig(self.client.networks(ids=[network_id])[0])
-                    self._get_networks()[network_config.name] = network_config
-                    self.add_network_rules(network_config)
-                    # TODO: obsłużyć DOCKER-ISOLATION, aktualnie jeśli każdy network by generował ca;y zestaw to byłyby duplikaty
-                    # ale gdy dodajemy network to powinien też generować rules które nie mają jego id jako pierwszego argumentu
+                    self.add_network(network_config)
                 
                 """ happens only when there are no containers attached """
                 if event["Action"] == "destroy":
                     self.logger.info("Removing network %r", network_id)
                     
-                    del self._get_networks()[event["Actor"]["Attributes"]["name"]]
+                    del self._networks[network_id]
                     self._rules.remove(network_id=network_id)
-                    
-                # on connect, disconnect - update network & container
-                # on create, remove - update network
-                #print(event)
-    #             if event["Action"] == "connect":
-    #                 container_id = event["Actor"]["Attributes"]["container"]
-    #                 #self.logger.debug("Handling connect event for container %r", container_id)
-    #                 #info = ContainerInfo.from_container(self.client.containers.get(container_id))
-    #                 #self.on_connect(container_id, info.name, info.ipv4s, info.ipv6s)
-    #             
-    #             if event["Action"] == "disconnect":
-    #                 #container_id = event["Actor"]["Attributes"]["container"]
-    #                 #self.logger.debug("Handling disconnect event for container %r", container_id)
-    #                 #self.on_disconnect(container_id)
-        for r in d.filter_removed(ipv4=True):
-            print("Removed %r" % r)
-        for r in d.filter_added(ipv4=True):
-            print("Added %r" % r)
+                
+        
+        self._apply_changes(d)
+    
     def run(self):
         events = self.client.events(decode=True)
         
