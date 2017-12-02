@@ -25,6 +25,8 @@ import copy
 import subprocess
 import argparse
 
+from dockerwall.rules import *
+
 #print(json.encoder.JSONEncoder(indent=2).encode(self._node))
 
 class ConnectionException(Exception):
@@ -185,56 +187,6 @@ class ContainerConfig(object):
             )
         return ret
 
-class Rule(object):
-    _ipv4 = False
-    _ipv6 = False
-    
-    _table = None
-    _chain = None
-    _data = None
-    _group = None
-    
-    def __init__(self):
-        super(Rule, self).__init__()
-        self._tags = {}
-    
-    def rule(self, table, chain, data):
-        self._table = table
-        self._chain = chain
-        self._data = data
-        return self
-    
-    def ipv6(self, v=True):
-        self._ipv6 = v
-        return self
-    
-    def ipv4(self, v=True):
-        self._ipv4 = v
-        return self
-    
-    def ip_any(self):
-        return self.ipv4().ipv6()
-    
-    def ip_type(self, name):
-        if name == "ipv4":
-            return self.ipv4()
-        if name == "ipv6":
-            return self.ipv6()
-    
-    def group(self, group):
-        self._group = group
-        return self
-    
-    def tags(self, **kwargs):
-        self._tags = kwargs
-        return self
-    
-    def __repr__(self):
-        return "-t %s -A %s %s [%d:%d:%d]" % (self._table, self._chain, self._data, self._group, self._ipv4, self._ipv6)
-    
-    def __cmp__(self, v):
-        return cmp(repr(self), repr(v))
-
 def _filter_rules(rules, ipv4=None, ipv6=None, has_tag=None, has_tag_value=None, f=None):
     for item in rules:
         
@@ -261,140 +213,26 @@ def _filter_rules(rules, ipv4=None, ipv6=None, has_tag=None, has_tag_value=None,
         
         yield i
 
-class RuleSetDiff(object):
-    def __init__(self, rule_set):
-        super(RuleSetDiff, self).__init__()
-        self._rule_set = rule_set
-    
-    def __enter__(self):
-        self._org = self._as_dict(self._rule_set.rules)
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._current = self._as_dict(self._rule_set.rules)
-    
-    def _enumerate_by_chain(self, rules):
-        # TODO: check ipv6/ipv4
-        chains = OrderedDict((("_ipv4", {}), ("_ipv6", {})))
-        for r in rules.values():
-            args = []
-            for proto_attr in chains.keys():
-                if getattr(r, proto_attr):
-                    k = "%s:%s" % (r._table, r._chain)
-                    chains[proto_attr][k] = chains[proto_attr].get(k, 0) + 1
-                    args.append(chains[proto_attr][k])
-                else:
-                    args.append(None)
-            
-            args.append(r)
-            
-            yield args
-    
-    def _as_dict(self, rules):
-        ret = OrderedDict()
-        for r in rules:
-            k = repr(r)
-            if k in ret:
-                raise Exception("Duplicated rule %r" % r)
-            ret[k] = r
-        return ret
-    
-    # TODO: rules już teraz się nie mogą powtarzać (przez _as_dict) więc można porzucić liczenie pozycji gdyż i tak nei zadziałą po usunieciu i dodaniu tych samych rulsów
-    def get_removed_rules(self):
-        """
-        Yields removed rule position in chain and rule.
-        """
-        removed = set(self._org.keys()).difference(self._current.keys())
-        
-        for pos4, pos6, r in self._enumerate_by_chain(self._org):
-            if repr(r) in removed:
-                yield (pos4, pos6, r)
-    
-    def get_added_rules(self):
-        added = set(self._current.keys()).difference(self._org.keys())
-        
-        for pos4, pos6, r in self._enumerate_by_chain(self._current):
-            if repr(r) in added:
-                yield (pos4, pos6, r)    
-    
-    def _filter(self, rules, **kwargs):
-        return _filter_rules(rules, f=lambda x:x[2], **kwargs)
-    
-    def filter_added(self, **kwargs):
-        return self._filter(self.get_added_rules(), **kwargs)
-    
-    def filter_removed(self, **kwargs):
-        return self._filter(self.get_removed_rules(), **kwargs)
-
-class RuleSet(object):
-    
-    GROUP_NETWORK = 1
-    GROUP_CONTAINER = 2
-    GROUP_LAST = 9
-    
-    _needs_sorting = True
-    
-    def __init__(self):
-        super(RuleSet, self).__init__()
-        self._rules = []
-    
-    def add(self, rule):
-        self._rules.append(rule)
-        self._needs_sorting = True
-    
-    @property
-    def rules(self):
-        if self._needs_sorting:
-            self._rules.sort(key=lambda x: x._group)
-            self._rules.sort(key=lambda x: x._table)
-            self._rules.sort(key=lambda x: x._chain)
-        
-        return self._rules
-    
-    @contextlib.contextmanager
-    def new(self):
-        r = Rule()
-        yield r
-        self.add(r)
-    
-    def diff(self):
-        return RuleSetDiff(self)
-    
-    def filter(self, **kwargs):
-        return _filter_rules(self.rules, **kwargs)
-    
-    def remove(self, container_id=None, network_id=None):
-        rs = self.rules
-        if container_id:
-            rs = _filter_rules(rs, has_tag="container", has_tag_value=container_id)
-        if network_id:
-            rs = _filter_rules(rs, has_tag="network", has_tag_value=network_id)
-        
-        for r in tuple(rs):
-            self._rules.remove(r)
-    
-    def extend(self, rules):
-        self._rules.extend(rules)
-        self._needs_sorting = True
-    
-    __iter__ = filter
-
 class Iptables(object):
-    def __init__(self, ip="4", pretend=False):
+    def __init__(self, ip=IpType.ip4, pretend=False):
         super(Iptables, self).__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.pretend = pretend
-        self._bin = "iptables" if ip == "4" else "ip6tables"
+        self._bin = "iptables" if ip == IpType.ip4 else "ip6tables"
     
     def append(self, rule):
-        self._cmd("-t %s -A %s %s" % (rule._table, rule._chain, rule._data))
+        self._cmd("-t %s -A %s %s" % (rule.table, rule.chain, rule.data))
     
     def insert(self, pos, rule):
-        self._cmd("-t %s -I %s %d %s" % (rule._table, rule._chain, pos, rule._data))
+        self._cmd("-t %s -I %s %d %s" % (rule.table, rule.chain, pos, rule.data))
     
     def delete(self, table, chain, pos):
         self._cmd("-t %s -D %s %d" % (table, chain, pos))
     
-    def flush(self, table, chain):
+    def flush(self, place=None, table=None, chain=None):
+        if place:
+            table = place.table
+            chain = place.chain
         self._cmd("-t %s -F %s" % (table, chain))
     
     def _cmd(self, args, ipv6=False, ipv4=False):
@@ -414,12 +252,6 @@ class DockerHandler(object):
     gwbridge just in case it is used by it. Data will be reloaded from API only
     if container is using gwbridge."""
     _gwbridge_needs_updating = False
-    
-    chain_filter_forward = 'DOCKER-FORWARD'
-    chain_nat_postrouting = 'DOCKER-POSTROUTING'
-    chain_filter_isolation = 'DOCKER-ISOLATION'
-    chain_nat_docker = 'DOCKER'
-    chain_filter_docker = 'DOCKER'
     
     def __init__(self, pretend=False):
         super(DockerHandler, self).__init__()
@@ -507,153 +339,154 @@ class DockerHandler(object):
         if not network.is_bridge:
             return
         
-        with self._rules.new() as r:
-            r.rule("nat", self.chain_nat_postrouting, "-o %s -m addrtype --src-type LOCAL -j MASQUERADE" % network.iface)
-            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
-            r.ipv6(network.uses_ipv6)
+        with self._rules.with_block(network=network.id) as rules:
+            with rules.new() as r:
+                r.rule(r.PLACE_NAT_POSTROUTING, "-o %s -m addrtype --src-type LOCAL -j MASQUERADE" % network.iface)
+                r.group(r.GROUP_NETWORK).ipv4()
+                r.ipv6(network.uses_ipv6)
             
-        #FIXME: when docker is started with iptables=false, ip-masq is always false too, so default bridge has no nat
-        if network.nat or network.is_default:
-            grouped_subnets = [["ipv4", network.ip4_subnets], ["ipv6", network.ip6_subnets]]
-            for ip_type, subnets in grouped_subnets:
-                for subnet in subnets:
-                    with self._rules.new() as r:
-                        r.rule("nat", self.chain_nat_postrouting, "-s %s ! -o %s -j MASQUERADE" % (subnet, network.iface))
-                        r.group(RuleSet.GROUP_NETWORK).tags(network=network.id)
-                        r.ip_type(ip_type)
-        
-        with self._rules.new() as r:
-            r.rule("filter", self.chain_filter_forward, "-o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = network.iface))
-            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
-            r.ipv6(network.uses_ipv6)
-        
-        with self._rules.new() as r:
-            r.rule("filter", self.chain_filter_forward, "-o {iface} -j DOCKER".format(iface = network.iface))
-            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
-            r.ipv6(network.uses_ipv6)
-        
-        with self._rules.new() as r:
-            r.rule("filter", self.chain_filter_forward, "-i {iface} ! -o {iface} -j ACCEPT".format(iface = network.iface))
-            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
-            r.ipv6(network.uses_ipv6)
-        
-        with self._rules.new() as r:
-            r.rule("filter", self.chain_filter_forward, "-i {iface} -o {iface} -j {action}".format(iface = network.iface, action="ACCEPT" if network.icc else "DROP"))
-            r.group(RuleSet.GROUP_NETWORK).ipv4().tags(network=network.id)
-            r.ipv6(network.uses_ipv6)
+            #FIXME: when docker is started with iptables=false, ip-masq is always false too, so default bridge has no nat
+            if network.nat or network.is_default:
+                grouped_subnets = [[IpType.ip4, network.ip4_subnets], [IpType.ip6, network.ip6_subnets]]
+                for ip_type, subnets in grouped_subnets:
+                    for subnet in subnets:
+                        with rules.new() as r:
+                            r.rule(r.PLACE_NAT_POSTROUTING, "-s %s ! -o %s -j MASQUERADE" % (subnet, network.iface))
+                            r.group(r.GROUP_NETWORK)
+                            r.ip_type(ip_type)
+            
+            with rules.new() as r:
+                r.rule(r.PLACE_FILTER_FORWARD, "-o {iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT".format(iface = network.iface))
+                r.group(r.GROUP_NETWORK).ipv4()
+                r.ipv6(network.uses_ipv6)
+            
+            with rules.new() as r:
+                r.rule(r.PLACE_FILTER_FORWARD, "-o {iface} -j DOCKER".format(iface = network.iface))
+                r.group(r.GROUP_NETWORK).ipv4()
+                r.ipv6(network.uses_ipv6)
+            
+            with rules.new() as r:
+                r.rule(r.PLACE_FILTER_FORWARD, "-i {iface} ! -o {iface} -j ACCEPT".format(iface = network.iface))
+                r.group(r.GROUP_NETWORK).ipv4()
+                r.ipv6(network.uses_ipv6)
+            
+            with rules.new() as r:
+                r.rule(r.PLACE_FILTER_FORWARD, "-i {iface} -o {iface} -j {action}".format(iface = network.iface, action="ACCEPT" if network.icc else "DROP"))
+                r.group(r.GROUP_NETWORK).ipv4()
+                r.ipv6(network.uses_ipv6)
         
         '''
         Networks are added in linear fashion by add_network method so n-th network will generate all related rules.
         When network is deleted, it will remove rules that possibly were not generated by it, but when added again, they will be generated.
+        Updating rules is not supported as it would created duplicates (in Docker, network config cannot be changed once created, so it is ok). 
         '''
-        for other in self._networks.values():
-            if other is network or not other.is_bridge:
-                continue
-            
-            for src, dst in [[network, other], [other, network]]:
-                with self._rules.new() as r:
-                    r.rule("filter", self.chain_filter_isolation, "-i {src} -o {dst} -j DROP".format(src=src.iface, dst=dst.iface))
-                    r.group(RuleSet.GROUP_NETWORK).tags(network=(src.id, dst.id))
-                    r.ipv4()
-                    
-                    # don't add ipv6 rules to non-ipv6 aware networks
-                    r.ipv6(src.uses_ipv6 and dst.uses_ipv6)
+        with self._rules.with_block(isolation_network=network.id) as rules:
+            for other in self._networks.values():
+                if other is network or not other.is_bridge:
+                    continue
+                
+                for src, dst in [[network, other], [other, network]]:
+                    with rules.new() as r:
+                        r.rule(r.PLACE_FILTER_ISOLATION, "-i {src} -o {dst} -j DROP".format(src=src.iface, dst=dst.iface))
+                        r.group(r.GROUP_NETWORK).tags(network=(src.id, dst.id))
+                        r.ipv4()
+                        
+                        # don't add ipv6 rules to non-ipv6 aware networks
+                        r.ipv6(src.uses_ipv6 and dst.uses_ipv6)
     
-    def add_container_rules(self, container):
+    def set_container_rules(self, container):
         ip4_conf, ip6_conf = self._get_ip_conf_for_container(container)
         
+        # set block event if its empty eg. container lost all networks
+        with self._rules.with_block(container=container.id) as rules:
+        
         #TODO: check if udp mode is working
-        if ip4_conf or ip6_conf:
-            grouped_ips = [["ipv4", ip4_conf], ["ipv6", ip6_conf]]
-            for p in container.ports:
-                for ip_type, ip_conf in grouped_ips:
-                    if ip_conf is None:
-                        continue
-                    
-                    addr = getattr(ip_conf, ip_type).addr
-                    if ip_type == 'ipv4':
-                        prefix = "32"
-                        addr_escaped = addr
-                    else:
-                        prefix = '128'
-                        addr_escaped = "[%s]" % addr 
-                    
-                    with self._rules.new() as r:
-                        r.rule("nat", self.chain_nat_postrouting, "-s {ip}/{prefix} -d {ip}/{prefix} -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
-                            ip = addr,
-                            protocol = p.protocol,
-                            port = p.private_port,
-                            prefix = prefix
-                        ))
-                        r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id)
-                        r.ip_type(ip_type)
-                    
-                    with self._rules.new() as r:
-                        r.rule("nat", self.chain_nat_docker, "-p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
-                            ip = addr_escaped,
-                            protocol = p.protocol,
-                            private_port = p.private_port,
-                            port = p.port
-                        ))
-                        r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id).ip_type(ip_type)
-                    
-                    with self._rules.new() as r:
-                        r.rule("filter", self.chain_filter_docker, "-d {ip}/{prefix} ! -i {iface} -o {iface} -p {protocol} -m {protocol} --dport {private_port} -j ACCEPT".format(
-                            ip = addr,
-                            iface = self._networks[ip_conf.network_id].iface,
-                            protocol = p.protocol,
-                            private_port = p.private_port,
-                            prefix = prefix
-                        ))
-                        r.group(RuleSet.GROUP_CONTAINER).tags(container=container.id).ip_type(ip_type)
+            if ip4_conf or ip6_conf:
+                grouped_ips = [["ipv4", ip4_conf], ["ipv6", ip6_conf]]
+                
+                for p in container.ports:
+                    for ip_type, ip_conf in grouped_ips:
+                        if ip_conf is None:
+                            continue
+                        
+                        addr = getattr(ip_conf, ip_type).addr
+                        if ip_type == 'ipv4':
+                            prefix = "32"
+                            addr_escaped = addr
+                        else:
+                            prefix = '128'
+                            addr_escaped = "[%s]" % addr 
+                        
+                        with rules.new() as r:
+                            r.rule(r.PLACE_NAT_POSTROUTING, "-s {ip}/{prefix} -d {ip}/{prefix} -p {protocol} -m {protocol} --dport {port} -j MASQUERADE".format(
+                                ip = addr,
+                                protocol = p.protocol,
+                                port = p.private_port,
+                                prefix = prefix
+                            ))
+                            r.group(r.GROUP_CONTAINER)
+                            r.ip_type(ip_type)
+                        
+                        with rules.new() as r:
+                            r.rule(r.PLACE_NAT_DOCKER, "-p {protocol} -m {protocol} --dport {port} -j DNAT --to-destination {ip}:{private_port}".format(
+                                ip = addr_escaped,
+                                protocol = p.protocol,
+                                private_port = p.private_port,
+                                port = p.port
+                            ))
+                            r.group(r.GROUP_CONTAINER).ip_type(ip_type)
+                        
+                        with rules.new() as r:
+                            r.rule(r.PLACE_FILTER_DOCKER, "-d {ip}/{prefix} ! -i {iface} -o {iface} -p {protocol} -m {protocol} --dport {private_port} -j ACCEPT".format(
+                                ip = addr,
+                                iface = self._networks[ip_conf.network_id].iface,
+                                protocol = p.protocol,
+                                private_port = p.private_port,
+                                prefix = prefix
+                            ))
+                            r.group(r.GROUP_CONTAINER).ip_type(ip_type)
     
     def add_network(self, network):
         self._networks[network.id] = network
         self.add_network_rules(network)
     
     def _apply_changes(self, diff):
-        iptables4 = Iptables("4", pretend=self.pretend)
-        iptables6 = Iptables("6", pretend=self.pretend)
-        
-        for pos4, pos6, r in reversed(list(diff.get_removed_rules())):
-            if pos4 is not None:
-                iptables4.delete(r._table, r._chain, pos4)
-            if pos6 is not None:
-                iptables6.delete(r._table, r._chain, pos6)
-        
-        for pos4, pos6, r in diff.get_added_rules():
-            if pos4 is not None:
-                iptables4.insert(pos4, r)
-            if pos6 is not None:
-                iptables6.insert(pos6, r)
-    
+        for ip in IpType.list():
+            iptables = Iptables(ip, pretend=self.pretend)
+            
+            for pos, r in reversed(list(diff.get_removed_rules(ip))):
+                iptables.delete(r.table, r.chain, pos)
+            
+            for pos, r in diff.get_added_rules(ip):
+                iptables.insert(pos, r)
+            
     def add_container(self, container):
         self._containers[container.id] = container
-        self.add_container_rules(container)
+        self.set_container_rules(container)
     
     def update_container(self, container):
         self._containers[container.id] = container
         
         diff = self._rules.diff()
         with diff:
-            self._rules.remove(container_id=container.id)
-            self.add_container_rules(container)
+            self.set_container_rules(container)
         
         self._apply_changes(diff)
         
     def load(self):
         
-        with self._rules.new() as r:
-            r.rule("filter", self.chain_filter_isolation, "-j RETURN")
-            r.group(RuleSet.GROUP_LAST).ip_any()
+        with self._rules.with_block("returns") as rules:
+            with rules.new() as r:
+                r.rule(r.PLACE_FILTER_ISOLATION, "-j RETURN")
+                r.group(r.GROUP_LAST).ip_any()
         
-        with self._rules.new() as r:
-            r.rule("nat", self.chain_nat_postrouting, "-j RETURN")
-            r.group(RuleSet.GROUP_LAST).ip_any()
-        
-        with self._rules.new() as r:
-            r.rule("filter", self.chain_filter_forward, "-j RETURN")
-            r.group(RuleSet.GROUP_LAST).ip_any()
+            with rules.new() as r:
+                r.rule(r.PLACE_NAT_POSTROUTING, "-j RETURN")
+                r.group(r.GROUP_LAST).ip_any()
+            
+            with rules.new() as r:
+                r.rule(r.PLACE_FILTER_FORWARD, "-j RETURN")
+                r.group(r.GROUP_LAST).ip_any()
         
         for n in self.fetch_networks():
             self.add_network(n)
@@ -664,20 +497,16 @@ class DockerHandler(object):
         # https://docs.docker.com/engine/userguide/networking/default_network/ipv6/#how-ipv6-works-on-docker
         # TODO: info about ip6 forward sysctl in docs
         
-        for ip in ["4","6"]:
+        for ip in IpType.list():
             iptables = Iptables(ip, pretend=self.pretend)
             
-            iptables.flush('nat', self.chain_nat_docker)
-            iptables.flush('nat', self.chain_nat_postrouting)
-            iptables.flush('filter', self.chain_filter_docker)
-            iptables.flush('filter', self.chain_filter_forward)
-            iptables.flush('filter', self.chain_filter_isolation)
-        
-            rules = self._rules.filter(
-                ipv4=True if ip=="4" else None,
-                ipv6=True if ip=="6" else None
-            )
-            for r in rules:
+            iptables.flush(RuleDefinition.PLACE_NAT_DOCKER)
+            iptables.flush(RuleDefinition.PLACE_NAT_POSTROUTING)
+            iptables.flush(RuleDefinition.PLACE_FILTER_DOCKER)
+            iptables.flush(RuleDefinition.PLACE_FILTER_FORWARD)
+            iptables.flush(RuleDefinition.PLACE_FILTER_ISOLATION)
+            
+            for r in self._rules.get_rules(ip):
                 iptables.append(r)
     
     def handle_event(self, event):
@@ -702,7 +531,7 @@ class DockerHandler(object):
                     # no need to update gwbridge since IP addr stays the same for other containers
                     self.logger.info("Removing container %r", container_id)
                     del self._containers[container_id]
-                    self._rules.remove(container_id=container_id)
+                    self._rules.remove_block(container=container_id)
                     
                 # no swarm support, so no published ports changing
             
@@ -730,7 +559,8 @@ class DockerHandler(object):
                     self.logger.info("Removing network %r", network_id)
                     
                     del self._networks[network_id]
-                    self._rules.remove(network_id=network_id)
+                    self._rules.remove_block(network=network_id)
+                    self._rules.remove_tagged("network", network_id)
                 
         
         self._apply_changes(d)
