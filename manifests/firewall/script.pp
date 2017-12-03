@@ -68,11 +68,11 @@ class g_docker::firewall::script {
     proto    => 'all'
   }
 
-  file { '/usr/local/bin/docker-firewall':
-    ensure => 'file',
-    source => 'puppet:///modules/g_docker/dockertables.py',
-    mode => 'a=rx,u+w'
-  }
+#  file { '/usr/local/bin/docker-firewall':
+#    ensure => 'file',
+#    source => 'puppet:///modules/g_docker/dockertables.py',
+#    mode => 'a=rx,u+w'
+#  }
   
 #  docker_network { 'local':
 #    ensure   => present,
