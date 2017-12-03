@@ -15,7 +15,6 @@ Port publishing works by using bridge network, not overlay as it would be in Swa
 
 from __future__ import print_function
 
-import docker
 import logging
 import json
 from collections import OrderedDict
@@ -27,11 +26,9 @@ import argparse
 
 from dockerwall.rules import *
 from dockerwall.config import *
+from dockerwall.compat import DockerClient
 
 #print(json.encoder.JSONEncoder(indent=2).encode(self._node))
-
-class ConnectionException(Exception):
-    pass
 
 # TODO: dynamic rules in custom chains
 # TODO: handle docker masquerade labels
@@ -130,22 +127,17 @@ class DockerHandler(object):
         
         self._networks = OrderedDict()
         self._containers = OrderedDict()
+        
+        self.client = DockerClient()
     
     def setup(self):
-        try:
-            client = docker.from_env()
-            client.ping()
-        except Exception:
-            raise ConnectionException('Error communicating with docker.')
-        
+        self.client.connect()
         self.logger.info("Connected to docker")
-        self.client = client
-        
         self.load()
     
     def fetch_networks(self):
         networks = []
-        for data in self.client.networks():
+        for data in self.client.get_networks():
             n = NetworkConfig(data)
             networks.append(n)
         
@@ -154,7 +146,7 @@ class DockerHandler(object):
         
     def fetch_containers(self):
         containers = []
-        for n in self.client.containers():
+        for n in self.client.get_containers():
             cfg = ContainerConfig(n)
             containers.append(cfg)
         containers.sort(key=lambda x:x.created_at, reverse=True)
@@ -162,8 +154,10 @@ class DockerHandler(object):
     
     def get_gwbridge_network(self):
         if self._gwbridge_needs_updating:
-            cfg = NetworkConfig(self.client.networks(names=["docker_gwbridge"])[0])
-            self._networks[cfg.id] = cfg
+            conf = self.client.get_network_by_name("docker_gwbridge")
+            if conf:
+                cfg = NetworkConfig(conf)
+                self._networks[cfg.id] = cfg
         
         for n in self._networks.values():
             if n.name == "docker_gwbridge":
@@ -392,7 +386,7 @@ class DockerHandler(object):
                 if event["Action"] == 'start':
                     self.logger.info("Adding container %r", container_id)
                     self._gwbridge_needs_updating = True
-                    container_config = ContainerConfig(self.client.containers(filters={"id":container_id})[0])
+                    container_config = ContainerConfig(self.client.get_container(container_id))
                     self.add_container(container_config)
                 
                 if event["Action"] == 'stop':
@@ -414,12 +408,12 @@ class DockerHandler(object):
                     # if container is just starting, it will not be listed in api.containers()
                     # so handle it only if already known
                     if container_id in self._containers:
-                        container = ContainerConfig(self.client.containers(filters={"id":container_id})[0])
+                        container = ContainerConfig(self.client.get_container(container_id))
                         self.update_container(container)
                 
                 if event["Action"] == "create":
                     self.logger.info("Adding network %r", network_id)
-                    network_config = NetworkConfig(self.client.networks(ids=[network_id])[0])
+                    network_config = NetworkConfig(self.client.get_network(network_id))
                     self.add_network(network_config)
                 
                 """ happens only when there are no containers attached """
@@ -434,19 +428,15 @@ class DockerHandler(object):
         self._apply_changes(d)
     
     def run(self):
-        events = self.client.events(decode=True)
+        events = self.client.events()
         
-        while True:
-            try:
-                event = next(events)
-            except docker.StopException:
-                self.logger.info("Exiting")
-                return
-            except Exception:
-                self.logger.info("Docker connection broken - exitting")
-                return
+        try:
+            for event in events:
+                self.handle_event(event)
+        except Exception as e:
+            self.logger.exception(e)
             
-            self.handle_event(event)
+        self.logger.info("Exiting")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

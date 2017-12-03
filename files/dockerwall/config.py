@@ -116,7 +116,17 @@ class ContainerConfig(object):
     def _read(self, node):
         self.created_at = node["Created"]
         self.id = node["Id"]
-        self.ports = tuple(PortConfig(i['Type'], i['PublicPort'], i['PrivatePort'], i['IP']) for i in node["Ports"])
+        if "Ports" in node: # DockerPy API v1.x
+            self.ports = tuple(PortConfig(i['Type'], i['PublicPort'], i['PrivatePort'], i['IP']) for i in node["Ports"])
+        else:
+            ports = []
+            for pname, pconfs in node['NetworkSettings']['Ports'].items():
+                container_port, type = pname.split("/")
+                container_port = int(container_port)
+                for pconf in pconfs:
+                    ports.append(PortConfig(type, int(pconf["HostPort"]), container_port, pconf["HostIp"]))
+            self.ports = tuple(ports)
+            
         self.networks = self._read_networks(node)
     
     def _read_networks(self, node):
