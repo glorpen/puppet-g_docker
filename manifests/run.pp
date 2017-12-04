@@ -2,7 +2,8 @@ define g_docker::run(
   Hash $volumes = {},
   String $image,
   Hash $ports = {},
-  Optional[String] $puppetizer_config = undef
+  Optional[String] $puppetizer_config = undef,
+  Array[Variant[String,Hash]] $networks = []
 ){
   
   include ::g_docker
@@ -26,7 +27,7 @@ define g_docker::run(
       ensure => present,
       source => $puppetizer_config,
       require => File[$::g_docker::puppetizer_conf_path],
-      before => Docker::Run[$name]
+      notify => Docker::Run[$name]
     }
     $puppetizer_volumes = ["${runtime}:/var/opt/puppetizer/hiera/runtime.yaml:ro"]
   }
@@ -41,14 +42,37 @@ define g_docker::run(
     "${host_port}:${container_port}"
   }
   
+  $docker_command = $::docker::docker_command
+  
+  $network_commands = $networks.map | $v | {
+    # TODO: require g_docker::network ?
+    if ($v =~ String) {
+      "/usr/bin/${docker_command} network connect '${v}' '${name}'"
+    } else {
+      "/usr/bin/${docker_command} network connect --alias '${v['alias']}' '${v['name']}' '${name}'"
+    }
+  }
+  
+  if $network_commands {
+    $other_commands = $network_commands[1,-1].reduce("") | $memo, $v | {
+      "${memo}\nExecStartPre=-${v}"
+    }
+    $systemd_params = {
+      'ExecStartPre' => "-${network_commands[0]}${other_commands}"
+    }
+  } else {
+    $systemd_params = {}
+  }
+  
   g_docker::data { $name:
     volumes => $volumes
   }->
   docker::run { $name:
     image   => $image,
     remove_container_on_stop => true,
-    remove_container_on_start => true,
+    remove_container_on_start => false, # so "docker create" command will be run
     volumes => concat($docker_volumes, $puppetizer_volumes),
-    ports => $docker_ports
+    ports => $docker_ports,
+    extra_systemd_parameters => $systemd_params
   }
 }
