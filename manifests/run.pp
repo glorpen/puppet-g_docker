@@ -32,14 +32,21 @@ define g_docker::run(
     $puppetizer_volumes = ["${runtime}:/var/opt/puppetizer/hiera/runtime.yaml:ro"]
   }
   
-  $docker_ports = $ports.map | $host_port, $container_port | {
+  $docker_ports = $ports.map | $host_port_info, $container_port | {
+    $_port_info = split($host_port_info,'/')
+    $_protocol = $_port_info[1]?{
+      undef => 'tcp',
+      default => $_port_info[1]
+    }
+    $_host_port = $_port_info[0]
+    
     create_resources("${::g_docker::firewall_base}_run", {
-      "${name}:${host_port}" => {
-        'host_port' => $host_port,
-        'protocol' => 'tcp' #TODO: support udp
+      "${name}:${_host_port}:${_protocol}" => {
+        'host_port' => $_host_port,
+        'protocol' => $_protocol
       }
     })
-    "${host_port}:${container_port}"
+    "${_host_port}:${container_port}/${_protocol}"
   }
   
   $docker_command = $::docker::docker_command
