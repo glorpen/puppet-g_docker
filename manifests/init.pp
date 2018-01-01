@@ -8,7 +8,8 @@ class g_docker(
   String $thinpool_metadata_size,
   Hash $instances = {},
   Hash $registries = {},
-  Optional[String] $ipv6_cidr = undef
+  Optional[String] $ipv6_cidr = undef,
+  Hash $networks = {}
 ){
   
   include ::stdlib
@@ -64,6 +65,8 @@ class g_docker(
   
   create_resources(::g_docker::run, $instances)
   create_resources(::docker::registry, $registries)
+  create_resources(::g_docker::network, $networks)
+  
   #TODO: fix with linematch resource and https://github.com/puppetlabs/puppetlabs-docker/issues/15
   
 

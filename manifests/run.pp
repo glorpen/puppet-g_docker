@@ -55,10 +55,11 @@ define g_docker::run(
   $docker_command = $::docker::docker_command
   
   $network_commands = $networks.map | $v | {
-    # TODO: require g_docker::network ?
     if ($v =~ String) {
+      G_docker::Network[$v]->Docker::Run[$name]
       "/usr/bin/${docker_command} network connect '${v}' '${name}'"
     } else {
+      G_docker::Network[$v]->Docker::Run[$v['name']]
       "/usr/bin/${docker_command} network connect --alias '${v['alias']}' '${v['name']}' '${name}'"
     }
   }
