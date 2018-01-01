@@ -4,7 +4,8 @@ define g_docker::run(
   Hash $ports = {},
   Optional[String] $puppetizer_config = undef,
   Array[Variant[String,Hash]] $networks = [],
-  Array[String] $capabilities = []
+  Array[String] $capabilities = [],
+  String $network = 'bridge'
 ){
   
   include ::g_docker
@@ -39,12 +40,13 @@ define g_docker::run(
       undef => 'tcp',
       default => $_port_info[1]
     }
-    $_host_port = $_port_info[0]
+    $_host_port = Integer($_port_info[0])
     
     create_resources("${::g_docker::firewall_base}_run", {
       "${name}:${_host_port}:${_protocol}" => {
         'host_port' => $_host_port,
-        'protocol' => $_protocol
+        'protocol' => $_protocol,
+        'host_network' => $network == 'host'
       }
     })
     "${_host_port}:${container_port}/${_protocol}"
@@ -74,7 +76,7 @@ define g_docker::run(
   
   $_params_caps = $capabilities.map | $v | {
     "--cap-add ${v}"
-  } 
+  }
   
   g_docker::data { $name:
     volumes => $volumes
@@ -86,6 +88,7 @@ define g_docker::run(
     volumes => concat($docker_volumes, $puppetizer_volumes),
     ports => $docker_ports,
     extra_systemd_parameters => $systemd_params,
-    extra_parameters => $_params_caps
+    extra_parameters => $_params_caps,
+    net => $network
   }
 }

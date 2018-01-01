@@ -1,6 +1,7 @@
 define g_docker::firewall::script_run(
-  $host_port,
-  $protocol
+  Integer $host_port,
+  String $protocol,
+  Boolean $host_network
 ){
   # noop
 }
