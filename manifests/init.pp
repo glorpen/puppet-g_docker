@@ -8,7 +8,7 @@ class g_docker(
   String $thinpool_metadata_size,
   Hash $instances = {},
   Hash $registries = {},
-  String $ipv6_cidr = undef
+  Optional[String] $ipv6_cidr = undef
 ){
   
   include ::stdlib
