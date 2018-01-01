@@ -17,6 +17,7 @@ class g_docker(
   contain $firewall_base
 
   $puppetizer_conf_path = '/etc/docker/puppetizer.conf.d'
+  $_vol_name = regsubst($thinpool_name, '-', '--', 'G')
 
   file { $data_path:
     ensure => directory,
@@ -31,7 +32,8 @@ class g_docker(
     backup => false,
     force => true,
     purge => true,
-    recurse => true
+    recurse => true,
+    require => Class[::docker]
   }
   
   if $ipv6_cidr == undef {
@@ -52,8 +54,7 @@ class g_docker(
     storage_driver => 'devicemapper',
     dm_basesize => $basesize,
     storage_vg => $vg_name,
-    dm_thinpooldev => "/dev/mapper/${vg_name}-docker--thin",
-    # TODO: function to normalize dev name for LVM 
+    dm_thinpooldev => "/dev/mapper/${vg_name}-${_vol_name}",
     dm_blkdiscard => true,
     
     extra_parameters => $_docker_params,
