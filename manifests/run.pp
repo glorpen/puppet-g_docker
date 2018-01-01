@@ -3,7 +3,8 @@ define g_docker::run(
   String $image,
   Hash $ports = {},
   Optional[String] $puppetizer_config = undef,
-  Array[Variant[String,Hash]] $networks = []
+  Array[Variant[String,Hash]] $networks = [],
+  Array[String] $capabilities = []
 ){
   
   include ::g_docker
@@ -71,6 +72,10 @@ define g_docker::run(
     $systemd_params = {}
   }
   
+  $_params_caps = $capabilities.map | $v | {
+    "--cap-add ${v}"
+  } 
+  
   g_docker::data { $name:
     volumes => $volumes
   }->
@@ -80,6 +85,7 @@ define g_docker::run(
     remove_container_on_start => false, # so "docker create" command will be run
     volumes => concat($docker_volumes, $puppetizer_volumes),
     ports => $docker_ports,
-    extra_systemd_parameters => $systemd_params
+    extra_systemd_parameters => $systemd_params,
+    extra_parameters => $_params_caps
   }
 }
