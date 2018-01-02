@@ -59,7 +59,7 @@ define g_docker::run(
       G_docker::Network[$v]->Docker::Run[$name]
       "/usr/bin/${docker_command} network connect '${v}' '${name}'"
     } else {
-      G_docker::Network[$v]->Docker::Run[$v['name']]
+      G_docker::Network[$v['name']]->Docker::Run[$name]
       "/usr/bin/${docker_command} network connect --alias '${v['alias']}' '${v['name']}' '${name}'"
     }
   }
