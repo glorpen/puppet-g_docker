@@ -60,7 +60,10 @@ define g_docker::run(
       "/usr/bin/${docker_command} network connect '${v}' '${name}'"
     } else {
       G_docker::Network[$v['name']]->Docker::Run[$name]
-      "/usr/bin/${docker_command} network connect --alias '${v['alias']}' '${v['name']}' '${name}'"
+      $options = delete_undef_values([
+        if $v['alias'] { "--alias '${v['alias']}'" }
+      ]).join(' ')
+      "/usr/bin/${docker_command} network connect ${options} '${v['name']}' '${name}'"
     }
   }
   
