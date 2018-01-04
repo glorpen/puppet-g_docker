@@ -61,7 +61,9 @@ define g_docker::run(
     } else {
       G_docker::Network[$v['name']]->Docker::Run[$name]
       $options = delete_undef_values([
-        if $v['alias'] { "--alias '${v['alias']}'" }
+        if $v['alias'] { "--alias '${v['alias']}'" },
+        if $v['ip'] { "--ip '${v['ip']}'" },
+        if $v['ip6'] { "--ip6 '${v['ip6']}'" }
       ]).join(' ')
       "/usr/bin/${docker_command} network connect ${options} '${v['name']}' '${name}'"
     }
