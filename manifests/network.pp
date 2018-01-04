@@ -11,6 +11,8 @@ define g_docker::network(
     subnet => $subnets,
     gateway => $gateways,
     ip_range => $ranges,
-    options => $options
+    options => $options.map | $k, $v | {
+      "${k}=${v}"
+    }
   }
 }
