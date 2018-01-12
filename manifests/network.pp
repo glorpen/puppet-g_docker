@@ -3,6 +3,7 @@ define g_docker::network(
   Array[String] $subnets = [],
   Array[String] $gateways = [],
   Array[String] $ranges = [],
+  Hash $aux_addresses = {},
   Hash $options = {}
 ){
   docker_network { $name:
@@ -11,6 +12,9 @@ define g_docker::network(
     subnet => $subnets,
     gateway => $gateways,
     ip_range => $ranges,
+    aux_address => $aux_addresses.map | $k, $v | {
+      "${k}=${v}"
+    },
     options => $options.map | $k, $v | {
       "${k}=${v}"
     }
