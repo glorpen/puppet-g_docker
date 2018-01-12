@@ -5,7 +5,8 @@ define g_docker::run(
   Optional[String] $puppetizer_config = undef,
   Array[Variant[String,Hash]] $networks = [],
   Array[String] $capabilities = [],
-  String $network = 'bridge'
+  String $network = 'bridge',
+  Hash $env = {}
 ){
   
   include ::g_docker
@@ -95,6 +96,9 @@ define g_docker::run(
     ports => $docker_ports,
     extra_systemd_parameters => $systemd_params,
     extra_parameters => $_params_caps,
-    net => $network
+    net => $network,
+    env => $env.map | $k, $v | {
+      "${k}=${v}"
+    }
   }
 }
