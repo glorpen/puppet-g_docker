@@ -6,7 +6,8 @@ define g_docker::run(
   Array[Variant[String,Hash]] $networks = [],
   Array[String] $capabilities = [],
   String $network = 'bridge',
-  Hash $env = {}
+  Hash $env = {},
+  Variant[String, Array[String]] $args = []
 ){
   
   include ::g_docker
@@ -85,6 +86,12 @@ define g_docker::run(
     "--cap-add ${v}"
   }
   
+  $_image_command = if ($args =~ String) {
+    $args
+  } else {
+    $args.join(' ')
+  }
+  
   g_docker::data { $name:
     volumes => $volumes
   }->
@@ -99,6 +106,7 @@ define g_docker::run(
     net => $network,
     env => $env.map | $k, $v | {
       "${k}=${v}"
-    }
+    },
+    command => $_image_command
   }
 }
