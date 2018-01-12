@@ -9,7 +9,8 @@ class g_docker(
   Hash $instances = {},
   Hash $registries = {},
   Optional[String] $ipv6_cidr = undef,
-  Hash $networks = {}
+  Hash $networks = {},
+  Array[String] $insecure_registries = []
 ){
   
   include ::stdlib
@@ -42,7 +43,11 @@ class g_docker(
   } else {
     $_docker_ipv6_params = ['--ipv6', '--fixed-cidr-v6', $ipv6_cidr]
   }
-  $_docker_params = concat(['--userland-proxy=false'], $_docker_ipv6_params)
+  $_docker_insecure_reg_params = $insecure_registries.map | $n | {
+    "--insecure-registry ${n}"
+  }
+  
+  $_docker_params = concat(['--userland-proxy=false'], $_docker_ipv6_params, $_docker_insecure_reg_params)
   
   # /var/lib/docker -> mostly for volumes data
   g_server::volumes::thinpool { $thinpool_name:
