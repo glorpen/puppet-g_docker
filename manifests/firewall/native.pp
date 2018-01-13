@@ -82,6 +82,11 @@ class g_docker::firewall::native {
     purge => false,
     require => Class['docker']
   }
+  firewallchain { "DOCKER-USER:filter:IPv4":
+    ensure => present,
+    purge => false,
+    require => Class['docker']
+  }
 
 
 
