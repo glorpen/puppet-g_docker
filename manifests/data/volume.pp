@@ -1,4 +1,5 @@
 define g_docker::data::volume(
+  Enum['present','absent'] $ensure = 'present',
   String $data_name,
   String $volume_name = $title,
   String $size,
@@ -8,6 +9,7 @@ define g_docker::data::volume(
   
   $lv_name = "${data_name}_${volume_name}"
   g_server::volumes::vol { $lv_name:
+    ensure => $ensure,
     vg_name => $::g_docker::vg_name,
     size => $size,
     mountpoint => "${::g_docker::data_path}/${data_name}/${volume_name}",
@@ -16,6 +18,7 @@ define g_docker::data::volume(
   
   $binds.each | $bind_name, $unused | {
     ::g_docker::data::bind { "${data_name}:${volume_name}:${bind_name}":
+      ensure => $ensure,
       data_name => $data_name,
       volume_name => $volume_name,
       bind_name => $bind_name

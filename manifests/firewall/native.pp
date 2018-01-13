@@ -6,7 +6,7 @@ class g_docker::firewall::native {
   }
   
   # TODO: passing $bridge parameter or detecting?
-  $default_network = $::facts['docker']['networks'].filter | $v | {
+  $default_network = $::facts['g_docker']['networks'].filter | $v | {
       $v["options"]["com.docker.network.bridge.default_bridge"] == "true"
   }[0]
   
@@ -30,7 +30,7 @@ class g_docker::firewall::native {
     }
   }
   
-  $re_ifaces = $::facts['docker']['networks'].filter | $net_config | {
+  $re_ifaces = $::facts['g_docker']['networks'].filter | $net_config | {
     # TODO: overlay, custom(?)
     $net_config['driver'] == 'bridge'
   }.map | $net_config | {

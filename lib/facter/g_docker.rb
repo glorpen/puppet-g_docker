@@ -13,7 +13,7 @@ rescue LoadError => e
   end
 end
 
-Facter.add(:docker) do
+Facter.add(:g_docker) do
   confine :kernel => :linux
   setcode do
     

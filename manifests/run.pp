@@ -1,4 +1,5 @@
 define g_docker::run(
+  Enum[present,absent] $ensure = 'present',
   Hash $volumes = {},
   String $image,
   Hash $ports = {},
@@ -26,9 +27,9 @@ define g_docker::run(
   if $puppetizer_config == undef {
     $puppetizer_volumes = []
   } else {
-    $runtime = "${::g_docker::puppetizer_conf_path}/${name}.yaml"
-    file { $runtime:
-      ensure => present,
+    $puppetizer_runtime = "${::g_docker::puppetizer_conf_path}/${name}.yaml"
+    file { $puppetizer_runtime:
+      ensure => $ensure,
       source => $puppetizer_config,
       require => File[$::g_docker::puppetizer_conf_path],
       notify => Docker::Run[$name]
@@ -46,6 +47,7 @@ define g_docker::run(
     
     create_resources("${::g_docker::firewall_base}_run", {
       "${name}:${_host_port}:${_protocol}" => {
+        'ensure' => $ensure,
         'host_port' => $_host_port,
         'protocol' => $_protocol,
         'host_network' => $network == 'host'
@@ -93,9 +95,11 @@ define g_docker::run(
   }
   
   g_docker::data { $name:
+    ensure => $ensure,
     volumes => $volumes
-  }->
+  }
   docker::run { $name:
+    ensure => $ensure,
     image   => $image,
     remove_container_on_stop => true,
     remove_container_on_start => false, # so "docker create" command will be run
@@ -108,5 +112,13 @@ define g_docker::run(
       "${k}=${v}"
     },
     command => $_image_command
+  }
+  
+  if $ensure == 'present' {
+    G_docker::Data[$name]
+    ->Docker::Run[$name]
+  } else {
+    Docker::Run[$name]
+    ->G_docker::Data[$name]
   }
 }

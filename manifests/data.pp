@@ -1,11 +1,14 @@
 define g_docker::data(
+  Enum['present','absent'] $ensure = 'present',
   Hash $volumes = {}
 ){
   include ::g_docker
-  # TODO: add handling for ensure: absent, ensure: stopped
   
   file { "${::g_docker::data_path}/${name}":
-    ensure => directory,
+    ensure => $ensure?{
+      'present' => directory,
+      default => $ensure
+    },
     backup => false,
     force => true,
     require => File[$::g_docker::data_path]
@@ -13,6 +16,7 @@ define g_docker::data(
   
   $volumes.each | $vol_name, $vol_config | {
     ::g_docker::data::volume { "${name}:${vol_name}":
+      ensure => $ensure,
       volume_name => $vol_name,
       data_name => $name,
       * => $vol_config
