@@ -11,7 +11,14 @@ define g_docker::data(
     },
     backup => false,
     force => true,
-    require => File[$::g_docker::data_path]
+  }
+  
+  if $ensure == 'present' {
+    File[$::g_docker::data_path]
+    ->File["${::g_docker::data_path}/${name}"]
+  } else {
+    File["${::g_docker::data_path}/${name}"]
+    ->File[$::g_docker::data_path]
   }
   
   $volumes.each | $vol_name, $vol_config | {

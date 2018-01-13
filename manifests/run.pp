@@ -1,5 +1,5 @@
 define g_docker::run(
-  Enum[present,absent] $ensure = 'present',
+  Enum['present','absent'] $ensure = 'present',
   Hash $volumes = {},
   String $image,
   Hash $ports = {},

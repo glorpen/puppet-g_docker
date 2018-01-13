@@ -8,12 +8,13 @@ define g_docker::data::volume(
   include ::g_docker
   
   $lv_name = "${data_name}_${volume_name}"
+  $mountpoint = "${::g_docker::data_path}/${data_name}/${volume_name}"
+  
   g_server::volumes::vol { $lv_name:
     ensure => $ensure,
     vg_name => $::g_docker::vg_name,
     size => $size,
-    mountpoint => "${::g_docker::data_path}/${data_name}/${volume_name}",
-    require => File["${::g_docker::data_path}/${data_name}"],
+    mountpoint => $mountpoint,
   }
   
   $binds.each | $bind_name, $unused | {
@@ -23,5 +24,10 @@ define g_docker::data::volume(
       volume_name => $volume_name,
       bind_name => $bind_name
     }
+  }
+  
+  if $ensure == 'present' {
+    File["${::g_docker::data_path}/${data_name}"]
+    ->G_server::Volumes::Vol[$lv_name]
   }
 }
