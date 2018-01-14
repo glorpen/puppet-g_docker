@@ -1,6 +1,7 @@
 define g_docker::run(
   Enum['present','absent'] $ensure = 'present',
   Hash $volumes = {},
+  Hash $binds = {},
   String $image,
   Hash $ports = {},
   Optional[String] $puppetizer_config = undef,
@@ -13,6 +14,7 @@ define g_docker::run(
   
   include ::g_docker
   
+  # TODO: make function
   $docker_volumes = $volumes.map | $data_name, $data_config | {
     $data_config['binds'].map | $bind_name, $bind_conf | {
       $path = $bind_conf['path']
@@ -23,6 +25,15 @@ define g_docker::run(
       "${::g_docker::data_path}/${name}/${data_name}/${bind_name}:${path}:${flag}"
     }
   }.flatten
+  
+  $docker_binds = $binds.map | $host_path, $bind_conf | {
+    $path = $bind_conf['path']
+    $flag = $bind_conf['readonly']?{
+      false => 'rw',
+      default => 'ro'
+    }
+    "${host_path}:${path}:${flag}"
+  }
   
   if $puppetizer_config == undef {
     $puppetizer_volumes = []
@@ -103,7 +114,7 @@ define g_docker::run(
     image   => $image,
     remove_container_on_stop => true,
     remove_container_on_start => false, # so "docker create" command will be run
-    volumes => concat($docker_volumes, $puppetizer_volumes),
+    volumes => concat($docker_volumes, $docker_binds, $puppetizer_volumes),
     ports => $docker_ports,
     extra_systemd_parameters => $systemd_params,
     extra_parameters => $_params_caps,
