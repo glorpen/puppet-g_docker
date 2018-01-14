@@ -17,12 +17,15 @@ define g_docker::data::volume(
     mountpoint => $mountpoint,
   }
   
-  $binds.each | $bind_name, $unused | {
+  $binds.each | $bind_name, $bind_conf | {
     ::g_docker::data::bind { "${data_name}:${volume_name}:${bind_name}":
       ensure => $ensure,
       data_name => $data_name,
       volume_name => $volume_name,
-      bind_name => $bind_name
+      bind_name => $bind_name,
+      user => $bind_conf['user'],
+      group => $bind_conf['group'],
+      mode => $bind_conf['mode']
     }
   }
   
