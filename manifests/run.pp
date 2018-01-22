@@ -45,7 +45,7 @@ define g_docker::run(
       require => File[$::g_docker::puppetizer_conf_path],
       notify => Docker::Run[$name]
     }
-    $puppetizer_volumes = ["${runtime}:/var/opt/puppetizer/hiera/runtime.yaml:ro"]
+    $puppetizer_volumes = ["${puppetizer_runtime}:/var/opt/puppetizer/hiera/runtime.yaml:ro"]
   }
   
   $docker_ports = $ports.map | $host_port_info, $container_port | {
