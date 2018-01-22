@@ -111,7 +111,10 @@ define g_docker::run(
   }
   
   g_docker::data { $name:
-    ensure => $ensure,
+    ensure => $volumes.empty?{
+      true => absent,
+      default => $ensure
+    },
     volumes => $volumes
   }
   docker::run { $name:
