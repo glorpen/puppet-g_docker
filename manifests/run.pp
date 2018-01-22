@@ -49,12 +49,17 @@ define g_docker::run(
   }
   
   $docker_ports = $ports.map | $host_port_info, $container_port | {
-    $_port_info = split($host_port_info,'/')
-    $_protocol = $_port_info[1]?{
-      undef => 'tcp',
-      default => $_port_info[1]
+    if ($host_port_info =~ Integer) {
+      $_protocol = 'tcp'
+      $_host_port = $host_port_info
+    } else {
+      $_port_info = split($host_port_info,'/')
+      $_protocol = $_port_info[1]?{
+        undef => 'tcp',
+        default => $_port_info[1]
+      }
+      $_host_port = Integer($_port_info[0])
     }
-    $_host_port = Integer($_port_info[0])
     
     create_resources("${::g_docker::firewall_base}_run", {
       "${name}:${_host_port}:${_protocol}" => {
