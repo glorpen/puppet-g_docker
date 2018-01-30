@@ -9,7 +9,8 @@ define g_docker::run(
   Array[String] $capabilities = [],
   String $network = 'bridge',
   Hash $env = {},
-  Variant[String, Array[String]] $args = []
+  Variant[String, Array[String]] $args = [],
+  Integer $stop_wait_time = 10
 ){
   
   include ::g_docker
@@ -130,7 +131,8 @@ define g_docker::run(
     env => $env.map | $k, $v | {
       "${k}=${v}"
     },
-    command => $_image_command
+    command => $_image_command,
+    stop_wait_time => $stop_wait_time
   }
   
   if $ensure == 'present' {
