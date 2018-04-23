@@ -26,7 +26,8 @@ class g_docker(
     backup => false,
     force => true,
     purge => true,
-    recurse => true
+    recurse => true,
+    recurselimit => 2 # /mnt/docker/<container name>/<bind name>
   }
   
   file { $puppetizer_conf_path:
@@ -71,8 +72,6 @@ class g_docker(
   create_resources(::g_docker::run, $instances)
   create_resources(::docker::registry, $registries)
   create_resources(::g_docker::network, $networks)
-  
-  #TODO: fix with linematch resource and https://github.com/puppetlabs/puppetlabs-docker/issues/15
   
 
 }

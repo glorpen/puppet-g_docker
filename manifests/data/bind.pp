@@ -9,7 +9,7 @@ define g_docker::data::bind(
 ){
   $lv_name = "${data_name}_${volume_name}"
   $bind_path = "${::g_docker::data_path}/${data_name}/${volume_name}/${bind_name}"
-  
+
   file { $bind_path:
     ensure => $ensure?{
       'present' => directory,
@@ -17,13 +17,15 @@ define g_docker::data::bind(
     },
     backup => false,
     force => true,
+    recurse => false,
     owner => $user,
     group => $group,
     mode => $mode
   }
-  
+
   G_server::Volumes::Vol[$lv_name]
   ->File[$bind_path]
+
   # when ensure=absent, volume would be already removed
   # so no Files need to be deleted
 }
