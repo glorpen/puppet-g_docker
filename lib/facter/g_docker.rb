@@ -18,6 +18,7 @@ Facter.add(:g_docker) do
   setcode do
     
     networks = []
+    version = nil
     
     # puppet code should ensure that socket exists
     client = Facter::Util::Docker::HTTPUnix.new('unix:///var/run/docker.sock')
@@ -25,20 +26,21 @@ Facter.add(:g_docker) do
     begin
       req = Net::HTTP::Get.new("/networks")
       data_networks = JSON.parse(client.request(req).body)
+
+      networks = data_networks.map do | v |
+        Facter::Util::Docker.underscore_hash(v)
+      end.sort do | a, b |
+        a["id"] <=> b["id"]
+      end
+
       req = Net::HTTP::Get.new("/version")
       data_version = JSON.parse(client.request(req).body)
+
+      version = data_version["Version"]
     rescue Exception => e
       Facter.warn("Failed to load api data as fact: #{e.class}: #{e}")
     end
       
-    networks = data_networks.map do | v |
-      Facter::Util::Docker.underscore_hash(v)
-    end.sort do | a, b |
-      a["id"] <=> b["id"]
-    end
-    
-    version = data_version["Version"]
-    
     {
       networks: networks,
       version: version

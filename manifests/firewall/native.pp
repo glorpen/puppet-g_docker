@@ -72,16 +72,37 @@ class g_docker::firewall::native {
     purge => false,
     require => Class['docker']
   }
-  firewallchain { "DOCKER-ISOLATION-STAGE-1:filter:IPv4":
-    ensure => present,
-    purge => false,
-    require => Class['docker']
+
+  if $::g_docker::version != undef and $::g_docker::version_symbol == 'ce' {
+      $_isolation_single = $::g_docker::version <= SemVer('18.3.0')
+      $_isolation_stage = ! $_isolation_single
+  } else {
+    # not sure know, so to be safe enable both
+    $_isolation_single = true
+    $_isolation_stage = true
   }
-  firewallchain { "DOCKER-ISOLATION-STAGE-2:filter:IPv4":
-    ensure => present,
-    purge => false,
-    require => Class['docker']
+
+  if $_isolation_single {
+    firewallchain { "DOCKER-ISOLATION:filter:IPv4":
+      ensure => present,
+      purge => false,
+      require => Class['docker']
+    }
   }
+  
+  if $_isolation_stage {
+    firewallchain { "DOCKER-ISOLATION-STAGE-1:filter:IPv4":
+      ensure => present,
+      purge => false,
+      require => Class['docker']
+    }
+    firewallchain { "DOCKER-ISOLATION-STAGE-2:filter:IPv4":
+      ensure => present,
+      purge => false,
+      require => Class['docker']
+    }
+  }
+  
   firewallchain { "DOCKER:nat:IPv4":
     ensure => present,
     purge => false,
