@@ -24,17 +24,24 @@ Facter.add(:g_docker) do
     
     begin
       req = Net::HTTP::Get.new("/networks")
-      networks = JSON.parse(client.request(req).body).map do | v |
-        Facter::Util::Docker.underscore_hash(v)
-      end.sort do | a, b |
-        a["id"] <=> b["id"]
-      end
+      data_networks = JSON.parse(client.request(req).body)
+      req = Net::HTTP::Get.new("/version")
+      data_version = JSON.parse(client.request(req).body)
     rescue Exception => e
-      Facter.warn("Failed to load network data as fact: #{e.class}: #{e}")
+      Facter.warn("Failed to load api data as fact: #{e.class}: #{e}")
+    end
+      
+    networks = data_networks.map do | v |
+      Facter::Util::Docker.underscore_hash(v)
+    end.sort do | a, b |
+      a["id"] <=> b["id"]
     end
     
+    version = data_version["Version"]
+    
     {
-      networks: networks
+      networks: networks,
+      version: version
     }
   end
 end
