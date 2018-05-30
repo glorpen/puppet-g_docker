@@ -15,15 +15,15 @@ class g_docker(
   
   include ::stdlib
   
-  $_ver = $::facts["g_docker"]["version"]
-  if $_ver == undef {
-    $version = undef
-    $version_symbol = undef
-  } else {
+  if $::facts["g_docker"]["installed"] {
+    $_ver = $::facts["g_docker"]["version"]
     # remove leading zeros from version and split engine type 
     $_version_parts = split(regsubst($_ver, /\.0+([0-9])/, '.\1', 'G'), /-/)
     $version = SemVer($_version_parts[0])
     $version_symbol = $_version_parts[1]
+  } else {
+    $version = undef
+    $version_symbol = undef
   }
   
   $firewall_base = "::g_docker::firewall::${firewall_mode}"

@@ -19,6 +19,7 @@ Facter.add(:g_docker) do
     
     networks = []
     version = nil
+    installed = false
     
     # puppet code should ensure that socket exists
     client = Facter::Util::Docker::HTTPUnix.new('unix:///var/run/docker.sock')
@@ -37,13 +38,16 @@ Facter.add(:g_docker) do
       data_version = JSON.parse(client.request(req).body)
 
       version = data_version["Version"]
+      
+      installed = true
     rescue Exception => e
       Facter.warn("Failed to load api data as fact: #{e.class}: #{e}")
     end
       
     {
       networks: networks,
-      version: version
+      version: version,
+      installed: installed
     }
   end
 end
