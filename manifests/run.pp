@@ -41,7 +41,17 @@ define g_docker::run(
   if $puppetizer_config == undef {
     $puppetizer_volumes = []
   } else {
-    $puppetizer_runtime = "${::g_docker::puppetizer_conf_path}/${name}.yaml"
+    $puppetizer_runtime_dir = "${::g_docker::puppetizer_conf_path}/${name}"
+    $puppetizer_runtime = "${puppetizer_runtime_dir}/runtime.yaml"
+    file { $puppetizer_runtime_dir:
+      ensure => $ensure?{
+        'present' => 'directory',
+        default => 'absent',
+      },
+      recurse => true,
+      backup => false,
+      force => true
+    }->
     file { $puppetizer_runtime:
       ensure => $ensure,
       source => $puppetizer_config,
@@ -54,7 +64,7 @@ define g_docker::run(
       tries => 3,
       command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -c 'test -f /var/opt/puppetizer/initialized && /opt/puppetizer/bin/apply; exit 0'"
     }
-    $puppetizer_volumes = ["${puppetizer_runtime}:/var/opt/puppetizer/hiera/runtime.yaml:ro"]
+    $puppetizer_volumes = ["${puppetizer_runtime_dir}:/var/opt/puppetizer/hiera:ro"]
   }
   
   $docker_ports = $ports.map | $host_port_info, $container_port | {
