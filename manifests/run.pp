@@ -15,6 +15,8 @@ define g_docker::run(
   
   include ::g_docker
   
+  $docker_command = $::docker::docker_command
+  
   # TODO: make function
   $docker_volumes = $volumes.map | $data_name, $data_config | {
     $data_config['binds'].map | $bind_name, $bind_conf | {
@@ -44,7 +46,13 @@ define g_docker::run(
       ensure => $ensure,
       source => $puppetizer_config,
       require => File[$::g_docker::puppetizer_conf_path],
-      notify => Docker::Run[$name]
+    }~>
+    # run puppet apply when config changed
+    exec { "puppetizer runtime apply for docker-${name}":
+      require => Docker::Run[$name],
+      refreshonly => true,
+      tries => 3,
+      command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -c 'test -f /var/opt/puppetizer/initialized && /opt/puppetizer/bin/apply; exit 0'"
     }
     $puppetizer_volumes = ["${puppetizer_runtime}:/var/opt/puppetizer/hiera/runtime.yaml:ro"]
   }
@@ -72,8 +80,6 @@ define g_docker::run(
     })
     "${_host_port}:${container_port}/${_protocol}"
   }
-  
-  $docker_command = $::docker::docker_command
   
   $network_commands = $networks.map | $v | {
     if ($v =~ String) {
