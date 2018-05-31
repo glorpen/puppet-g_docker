@@ -62,7 +62,7 @@ define g_docker::run(
       require => Docker::Run[$name],
       refreshonly => true,
       tries => 3,
-      command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -c 'test -f /var/opt/puppetizer/initialized && /opt/puppetizer/bin/apply; exit 0'"
+      command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -c 'test -f /var/opt/puppetizer/initialized && (/opt/puppetizer/bin/apply; exit $?); exit 0'"
     }
     $puppetizer_volumes = ["${puppetizer_runtime_dir}:/var/opt/puppetizer/hiera:ro"]
   }
