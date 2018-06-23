@@ -31,6 +31,7 @@ class g_docker(
 
   $puppetizer_conf_path = '/etc/docker/puppetizer.conf.d'
   $_vol_name = regsubst($thinpool_name, '-', '--', 'G')
+  $_vg_name = regsubst($vg_name, '-', '--', 'G')
 
   file { $data_path:
     ensure => directory,
@@ -72,7 +73,7 @@ class g_docker(
     storage_driver => 'devicemapper',
     dm_basesize => $basesize,
     storage_vg => $vg_name,
-    dm_thinpooldev => "/dev/mapper/${vg_name}-${_vol_name}",
+    dm_thinpooldev => "/dev/mapper/${_vg_name}-${_vol_name}",
     dm_blkdiscard => true,
     
     extra_parameters => $_docker_params,
