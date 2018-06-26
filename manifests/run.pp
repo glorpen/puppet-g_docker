@@ -1,7 +1,7 @@
 define g_docker::run(
   Enum['present','absent'] $ensure = 'present',
   Hash $volumes = {},
-  Hash $binds = {},
+  Hash $mounts = {},
   String $image,
   Hash $ports = {},
   Optional[String] $puppetizer_config = undef,
@@ -20,22 +20,24 @@ define g_docker::run(
   # TODO: make function
   $docker_volumes = $volumes.map | $data_name, $data_config | {
     $data_config['binds'].map | $bind_name, $bind_conf | {
-      $path = $bind_conf['path']
-      $flag = $bind_conf['readonly']?{
-        false => 'rw',
-        default => 'ro'
-      }
-      "${::g_docker::data_path}/${name}/${data_name}/${bind_name}:${path}:${flag}"
+      g_docker::mount_options(
+        'bind',
+        "${::g_docker::data_path}/${name}/${data_name}/${bind_name}",
+        $bind_conf['path'],
+        $bind_conf['readonly'],
+        $bind_conf['propagation']
+      )
     }
   }.flatten
   
-  $docker_binds = $binds.map | $host_path, $bind_conf | {
-    $path = $bind_conf['path']
-    $flag = $bind_conf['readonly']?{
-      false => 'rw',
-      default => 'ro'
-    }
-    "${host_path}:${path}:${flag}"
+  $docker_mounts = $mounts.map | $container_path, $mount_conf | {
+    g_docker::mount_options(
+      $mount_conf['type'],
+      $mount_conf['source'],
+      $mount_conf['destination'],
+      $mount_conf['readonly'],
+      $mount_conf['propagation']
+    )
   }
   
   if $puppetizer_config == undef {
@@ -64,7 +66,9 @@ define g_docker::run(
       tries => 3,
       command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -c 'test -f /var/opt/puppetizer/initialized && (/opt/puppetizer/bin/apply; exit $?); exit 0'"
     }
-    $puppetizer_volumes = ["${puppetizer_runtime_dir}:/var/opt/puppetizer/hiera:ro"]
+    $puppetizer_volumes = [
+      g_docker::mount_options('bind', $puppetizer_runtime_dir, '/var/opt/puppetizer/hiera', true)
+    ]
   }
   
   $docker_ports = $ports.map | $host_port_info, $container_port | {
@@ -127,6 +131,13 @@ define g_docker::run(
     $args.join(' ')
   }
   
+  $_extra_parameters = concat(
+    $_params_caps,
+    concat($docker_volumes, $docker_mounts, $puppetizer_volumes).map | $v | {
+      "\\\n    --mount ${v}"
+    }
+  )
+  
   g_docker::data { $name:
     ensure => $volumes.empty?{
       true => absent,
@@ -139,10 +150,9 @@ define g_docker::run(
     image   => $image,
     remove_container_on_stop => true,
     remove_container_on_start => false, # so "docker create" command will be run
-    volumes => concat($docker_volumes, $docker_binds, $puppetizer_volumes),
     ports => $docker_ports,
     extra_systemd_parameters => $systemd_params,
-    extra_parameters => $_params_caps,
+    extra_parameters => $_extra_parameters,
     net => $network,
     env => $env.map | $k, $v | {
       "${k}=${v}"
