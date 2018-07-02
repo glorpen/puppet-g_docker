@@ -34,7 +34,7 @@ define g_docker::run(
     g_docker::mount_options(
       $mount_conf['type'],
       $mount_conf['source'],
-      $mount_conf['destination'],
+      $container_path,
       $mount_conf['readonly'],
       $mount_conf['propagation']
     )
