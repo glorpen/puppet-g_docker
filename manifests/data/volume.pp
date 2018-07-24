@@ -32,5 +32,8 @@ define g_docker::data::volume(
   if $ensure == 'present' {
     File["${::g_docker::data_path}/${data_name}"]
     ->G_server::Volumes::Vol[$lv_name]
+  } else {
+    G_server::Volumes::Vol[$lv_name]
+    ->File["${::g_docker::data_path}/${data_name}"]
   }
 }
