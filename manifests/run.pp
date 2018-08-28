@@ -10,7 +10,8 @@ define g_docker::run(
   String $network = 'bridge',
   Hash $env = {},
   Variant[String, Array[String]] $args = [],
-  Integer $stop_wait_time = 10
+  Integer $stop_wait_time = 10,
+  Array[String] $depends_on = []
 ){
   
   include ::g_docker
@@ -145,6 +146,9 @@ define g_docker::run(
     },
     volumes => $volumes
   }
+  
+  $service_prefix = 'docker-'
+  
   docker::run { $name:
     ensure => $ensure,
     image   => $image,
@@ -158,14 +162,20 @@ define g_docker::run(
       "${k}=${v}"
     },
     command => $_image_command,
-    stop_wait_time => $stop_wait_time
+    stop_wait_time => $stop_wait_time,
+    service_prefix => $service_prefix,
+    depends => $depends_on
   }
   
   if $ensure == 'present' {
-    G_docker::Data[$name]
+    G_docker::Run[$depends_on]
+    ->G_docker::Data[$name]
     ->Docker::Run[$name]
   } else {
     Docker::Run[$name]
     ->G_docker::Data[$name]
+    ->G_docker::Run[$depends_on]
   }
+  
+  
 }
