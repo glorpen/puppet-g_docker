@@ -59,14 +59,19 @@ define g_docker::run(
       ensure => $ensure,
       source => $puppetizer_config,
       require => File[$::g_docker::puppetizer_conf_path],
-    }~>
-    # run puppet apply when config changed
-    exec { "puppetizer runtime apply for docker-${name}":
-      require => Docker::Run[$name],
-      refreshonly => true,
-      tries => 3,
-      command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -c 'test -f /var/opt/puppetizer/initialized && (/opt/puppetizer/bin/apply; exit $?); exit 0'"
     }
+    
+    if $ensure == 'present' {
+      # run puppet apply when config changed
+      File[$puppetizer_runtime]~>
+      exec { "puppetizer runtime apply for docker-${name}":
+        require => Docker::Run[$name],
+        refreshonly => true,
+        tries => 3,
+        command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -c 'test -f /var/opt/puppetizer/initialized && (/opt/puppetizer/bin/apply; exit $?); exit 0'"
+      }
+    }
+    
     $puppetizer_volumes = [
       g_docker::mount_options('bind', $puppetizer_runtime_dir, '/var/opt/puppetizer/hiera', true)
     ]
