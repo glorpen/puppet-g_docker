@@ -1,6 +1,6 @@
 define g_docker::data(
   Enum['present','absent'] $ensure = 'present',
-  Hash $volumes = {}
+  Hash[String, Hash] $volumes = {}
 ){
   include ::g_docker
   

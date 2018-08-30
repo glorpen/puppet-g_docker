@@ -1,7 +1,7 @@
 define g_docker::run(
   Enum['present','absent'] $ensure = 'present',
-  Hash $volumes = {},
-  Hash $mounts = {},
+  Hash[String, Hash] $volumes = {},
+  Hash[Stdlib::Absolutepath, Hash] $mounts = {},
   String $image,
   Hash $ports = {},
   Optional[String] $puppetizer_config = undef,

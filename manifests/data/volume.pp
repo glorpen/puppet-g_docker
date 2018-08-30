@@ -3,7 +3,7 @@ define g_docker::data::volume(
   String $data_name,
   String $volume_name = $title,
   String $size,
-  Hash $binds = {}
+  Hash[String, Hash] $binds = {}
 ){
   include ::g_docker
   
@@ -25,7 +25,8 @@ define g_docker::data::volume(
       bind_name => $bind_name,
       user => $bind_conf['user'],
       group => $bind_conf['group'],
-      mode => $bind_conf['mode']
+      mode => $bind_conf['mode'],
+      source => $bind_conf['source']
     }
   }
   
