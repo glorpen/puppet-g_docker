@@ -144,7 +144,8 @@ define g_docker::run(
       true => absent,
       default => $ensure
     },
-    volumes => $volumes
+    volumes => $volumes,
+    puppetized => $puppetizer_config != undef
   }
   
   $service_prefix = 'docker-'
