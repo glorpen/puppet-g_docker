@@ -8,7 +8,7 @@ define g_docker::run(
   Array[Variant[String,Hash]] $networks = [],
   Array[String] $capabilities = [],
   String $network = 'bridge',
-  Hash $env = {},
+  Hash[String, Variant[String, Integer]] $env = {},
   Variant[String, Array[String]] $args = [],
   Integer $stop_wait_time = 10,
   Array[String] $depends_on = []
@@ -150,6 +150,20 @@ define g_docker::run(
   
   $service_prefix = 'docker-'
   
+  $_systemd_escape = {
+    /\\/ => '\\x5c',
+    / /  => '\\x20',
+    /'/ => '\\x27',
+    /%/  => '%%'
+  }
+  
+  $_safe_env = $env.map | $k, $v | {
+    $_escaped_v = $_systemd_escape.reduce($v) | $memo, $re | {
+      regsubst(String($memo), $re[0], $re[1], 'G')
+    }
+    "${k}=${_escaped_v}"
+  }
+  
   docker::run { $name:
     ensure => $ensure,
     image   => $image,
@@ -159,9 +173,7 @@ define g_docker::run(
     extra_systemd_parameters => $systemd_params,
     extra_parameters => $_extra_parameters,
     net => $network,
-    env => $env.map | $k, $v | {
-      "${k}=${v}"
-    },
+    env => $_safe_env,
     command => $_image_command,
     stop_wait_time => $stop_wait_time,
     service_prefix => $service_prefix,
