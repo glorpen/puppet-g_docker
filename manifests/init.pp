@@ -10,7 +10,12 @@ class g_docker(
   Hash $registries = {},
   Optional[String] $ipv6_cidr = undef,
   Hash $networks = {},
-  Array[String] $insecure_registries = []
+  Array[String] $insecure_registries = [],
+  Optional[String] $auto_prune = '24h',
+  Hash $auto_prune_options = {
+    'hour'    => '*/4',
+    'minute'  => 0,
+  },
 ){
   
   include ::stdlib
@@ -84,6 +89,15 @@ class g_docker(
   create_resources(::g_docker::run, $instances)
   create_resources(::docker::registry, $registries)
   create_resources(::g_docker::network, $networks)
+  
+  if $auto_prune != undef {
+    # prune unused docker data
+    cron { 'g_docker-auto-prune':
+      command => "/bin/docker system prune -a -f --filter 'until=${auto_prune}'; /bin/docker system prune --volumes -f",
+      user    => 'root',
+      * => $auto_prune_options
+    }
+  }
   
 
 }
