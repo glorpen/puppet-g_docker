@@ -69,7 +69,7 @@ define g_docker::run(
         refreshonly => true,
         tries => 3,
         logoutput => true,
-        command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -ec 'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply fi'"
+        command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -ec 'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi'"
       }
     }
     
