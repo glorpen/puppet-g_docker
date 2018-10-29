@@ -11,7 +11,8 @@ define g_docker::run(
   Hash[String, Variant[String, Integer]] $env = {},
   Variant[String, Array[String]] $args = [],
   Integer $stop_wait_time = 10,
-  Array[String] $depends_on = []
+  Array[String] $depends_on = [],
+  Optional[Array[Variant[String, Integer], 2, 2]] $user = undef,
 ){
   
   include ::g_docker
@@ -138,11 +139,37 @@ define g_docker::run(
     $args.join(' ')
   }
   
+  if $user {
+    if ($user[0] =~ String) {
+      if (defined(User[$user[0]])) {
+        User[$user[0]]->G_docker::Data[$name]
+      }
+      
+      $_user_param_uid = "\$(id -u ${user[0]})"
+    } else {
+      $_user_param_uid = $user[0]
+    }
+    
+    if ($user[1] =~ String) {
+      if (defined(Group[$user[1]])) {
+        Group[$user[1]]->G_docker::Data[$name]
+      }
+      $_user_param_gid = "\$(id -g ${user[1]})"
+    } else {
+      $_user_param_gid = $user[1]
+    }
+    
+    $_user_parameters = ["\\\n    -u ${_user_param_uid}:${_user_param_gid}"]
+  } else {
+    $_user_parameters = []
+  }
+  
   $_extra_parameters = concat(
     $_params_caps,
     concat($docker_volumes, $docker_mounts, $puppetizer_volumes).map | $v | {
       "\\\n    --mount ${v}"
-    }
+    },
+    $_user_parameters
   )
   
   g_docker::data { $name:
