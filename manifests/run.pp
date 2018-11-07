@@ -18,6 +18,7 @@ define g_docker::run(
   include ::g_docker
   
   $docker_command = $::docker::docker_command
+  $sanitised_name = ::docker::sanitised_title($name)
   
   # TODO: make function
   $docker_volumes = $volumes.map | $data_name, $data_config | {
@@ -70,7 +71,7 @@ define g_docker::run(
         refreshonly => true,
         tries => 3,
         logoutput => true,
-        command => "/usr/bin/${docker_command} exec '${name}' /bin/sh -ec 'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi'"
+        command => "/usr/bin/${docker_command} exec '${sanitised_name}' /bin/sh -ec 'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi'"
       }
     }
     
@@ -106,7 +107,7 @@ define g_docker::run(
   $network_commands = $networks.map | $v | {
     if ($v =~ String) {
       G_docker::Network[$v]->Docker::Run[$name]
-      "/usr/bin/${docker_command} network connect '${v}' '${name}'"
+      "/usr/bin/${docker_command} network connect '${v}' '${sanitised_name}'"
     } else {
       G_docker::Network[$v['name']]->Docker::Run[$name]
       $options = delete_undef_values([
@@ -114,19 +115,8 @@ define g_docker::run(
         if $v['ip'] { "--ip '${v['ip']}'" },
         if $v['ip6'] { "--ip6 '${v['ip6']}'" }
       ]).join(' ')
-      "/usr/bin/${docker_command} network connect ${options} '${v['name']}' '${name}'"
+      "/usr/bin/${docker_command} network connect ${options} '${v['name']}' '${sanitised_name}'"
     }
-  }
-  
-  if $network_commands {
-    $other_commands = $network_commands[1,-1].reduce("") | $memo, $v | {
-      "${memo}\nExecStartPre=-${v}"
-    }
-    $systemd_params = {
-      'ExecStartPre' => "-${network_commands[0]}${other_commands}"
-    }
-  } else {
-    $systemd_params = {}
   }
   
   $_params_caps = $capabilities.map | $v | {
@@ -183,17 +173,8 @@ define g_docker::run(
   
   $service_prefix = 'docker-'
   
-  $_systemd_escape = {
-    /\\/ => '\\x5c',
-    / /  => '\\x20',
-    /'/ => '\\x27',
-    /%/  => '%%'
-  }
-  
   $_safe_env = $env.map | $k, $v | {
-    $_escaped_v = $_systemd_escape.reduce($v) | $memo, $re | {
-      regsubst(String($memo), $re[0], $re[1], 'G')
-    }
+    $_escaped_v = String($v)
     "${k}=${_escaped_v}"
   }
   
@@ -201,15 +182,15 @@ define g_docker::run(
     ensure => $ensure,
     image   => $image,
     remove_container_on_stop => true,
-    remove_container_on_start => false, # so "docker create" command will be run
+    remove_container_on_start => true,
     ports => $docker_ports,
-    extra_systemd_parameters => $systemd_params,
     extra_parameters => $_extra_parameters,
     net => $network,
     env => $_safe_env,
     command => $_image_command,
     stop_wait_time => $stop_wait_time,
     service_prefix => $service_prefix,
+    after_create => $network_commands.join("\n"),
     depends => $depends_on
   }
   
