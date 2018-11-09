@@ -13,6 +13,7 @@ define g_docker::run(
   Integer $stop_wait_time = 10,
   Array[String] $depends_on = [],
   Optional[Array[Variant[String, Integer], 2, 2]] $user = undef,
+  Boolean $localtime = true,
 ){
   
   include ::g_docker
@@ -41,6 +42,12 @@ define g_docker::run(
       $mount_conf['readonly'],
       $mount_conf['propagation']
     )
+  }
+  
+  if $localtime {
+    $localtime_mount = ['type=bind,source=/etc/localtime,destination=/etc/localtime,readonly']
+  } else {
+    $localtime_mount = []
   }
   
   if $puppetizer_config == undef {
@@ -156,7 +163,7 @@ define g_docker::run(
   
   $_extra_parameters = concat(
     $_params_caps,
-    concat($docker_volumes, $docker_mounts, $puppetizer_volumes).map | $v | {
+    concat($docker_volumes, $docker_mounts, $puppetizer_volumes, $localtime_mount).map | $v | {
       "\\\n    --mount ${v}"
     },
     $_user_parameters
