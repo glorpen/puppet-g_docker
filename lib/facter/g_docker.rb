@@ -41,7 +41,7 @@ Facter.add(:g_docker) do
       
       installed = true
     rescue Exception => e
-      Facter.warn("Failed to load api data as fact: #{e.class}: #{e}")
+      Facter.debug("Failed to load api data as fact: #{e.class}: #{e}")
     end
       
     {
