@@ -67,6 +67,17 @@ class g_docker(
   
   $_docker_params = concat(['--userland-proxy=false'], $_docker_ipv6_params, $_docker_insecure_reg_params)
   
+  case $::facts['os']['name'] {
+    'Centos' : {
+      $_repo_location = "https://download.docker.com/linux/centos/${::operatingsystemmajrelease}/\$basearch/stable"
+      $_repo_key = "https://download.docker.com/linux/centos/gpg"
+    }
+    'Fedora' : {
+      $_repo_location = "https://download.docker.com/linux/fedora/${::operatingsystemmajrelease}/\$basearch/stable"
+      $_repo_key = "https://download.docker.com/linux/fedora/gpg"
+    }
+  }
+  
   # /var/lib/docker -> mostly for volumes data
   g_server::volumes::thinpool { $thinpool_name:
     vg_name => $vg_name,
@@ -74,6 +85,8 @@ class g_docker(
     metadata_size => $thinpool_metadata_size
   }->
   class { ::docker:
+    docker_ce_source_location => $_repo_location,
+    docker_ce_key_source => $_repo_key,
     log_driver => 'syslog',
     storage_driver => 'devicemapper',
     dm_basesize => $basesize,
