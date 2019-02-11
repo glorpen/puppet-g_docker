@@ -181,7 +181,7 @@ define g_docker::run(
   $service_prefix = 'docker-'
   
   $_safe_env = $env.map | $k, $v | {
-    $_escaped_v = String($v)
+    $_escaped_v = shell_escape(String($v))
     "${k}=${_escaped_v}"
   }
   
