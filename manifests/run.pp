@@ -19,7 +19,7 @@ define g_docker::run(
   include ::g_docker
   
   $docker_command = $::docker::docker_command
-  $sanitised_name = ::docker::sanitised_title($name)
+  $sanitised_name = ::docker::sanitised_name($name)
   
   # TODO: make function
   $docker_volumes = $volumes.map | $data_name, $data_config | {
