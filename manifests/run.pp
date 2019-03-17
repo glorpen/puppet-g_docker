@@ -4,7 +4,8 @@ define g_docker::run(
   Hash[Stdlib::Absolutepath, Hash] $mounts = {},
   String $image,
   Hash $ports = {},
-  Optional[String] $puppetizer_config = undef,
+  Optional[String] $puppetizer_config_source = undef,
+  Optional[String] $puppetizer_config_content = undef,
   Array[Variant[String,Hash]] $networks = [],
   Array[String] $capabilities = [],
   String $network = 'bridge',
@@ -67,7 +68,8 @@ define g_docker::run(
     }->
     file { $puppetizer_runtime:
       ensure => $ensure,
-      source => $puppetizer_config,
+      source => $puppetizer_config_source,
+      content => $puppetizer_config_content,
       require => File[$::g_docker::puppetizer_conf_path],
     }
     
