@@ -1,4 +1,5 @@
 define g_docker::network(
+  String $ensure = 'present',
   String $driver = 'bridge',
   Array[String] $subnets = [],
   Array[String] $gateways = [],
@@ -7,7 +8,7 @@ define g_docker::network(
   Hash $options = {}
 ){
   docker_network { $name:
-    ensure => present,
+    ensure => $ensure,
     driver => $driver,
     subnet => $subnets,
     gateway => $gateways,
