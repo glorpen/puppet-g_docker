@@ -52,7 +52,7 @@ define g_docker::run(
     $localtime_mount = []
   }
   
-  if $puppetizer_config == undef {
+  if $puppetizer_config_content == undef and $puppetizer_config_source == undef {
     $puppetizer_volumes = []
   } else {
     $puppetizer_runtime_dir = "${::g_docker::puppetizer_conf_path}/${name}"
