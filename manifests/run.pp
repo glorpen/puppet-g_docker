@@ -20,6 +20,7 @@ define g_docker::run(
   
   $docker_command = $::docker::docker_command
   $sanitised_name = ::docker::sanitised_name($name)
+  $service_prefix = 'docker-'
   
   # TODO: make function
   $docker_volumes = $volumes.map | $data_name, $data_config | {
@@ -73,29 +74,30 @@ define g_docker::run(
     if $ensure == 'present' {
       # run apply when yaml changed and service is not refreshing
       
-      exec {"puppetizer runtime semaphore for docker-${name}":
+      exec {"puppetizer runtime semaphore for ${service_prefix}${name}":
         require => File[$puppetizer_runtime],
-        subscribe => Docker::Run[$name],
+        subscribe => Service["${service_prefix}${sanitised_name}"],
         refreshonly => true,
         path => '/bin:/usr/bin',
         command => "touch ${puppetizer_runtime}.lock"
       }
       
       # run puppet apply when config changed
-      exec { "puppetizer runtime apply for docker-${name}":
-        require => Exec["puppetizer runtime semaphore for docker-${name}"],
+      exec { "puppetizer runtime apply for ${service_prefix}${name}":
+        require => Exec["puppetizer runtime semaphore for ${service_prefix}${name}"],
         subscribe => File[$puppetizer_runtime],
         tries => 3,
         logoutput => true,
+        refreshonly => true,
         path => '/bin:/usr/bin',
         unless => "test -f ${puppetizer_runtime}.lock",
         command => "${docker_command} exec '${sanitised_name}' /bin/sh -ec 'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi'",
       }
       
-      exec { "puppetizer runtime cleanup docker-${name}":
+      exec { "puppetizer runtime cleanup ${service_prefix}${name}":
         subscribe => [
-          Exec["puppetizer runtime semaphore for docker-${name}"],
-          Exec["puppetizer runtime semaphore for docker-${name}"]
+          Exec["puppetizer runtime semaphore for ${service_prefix}${name}"],
+          Exec["puppetizer runtime semaphore for ${service_prefix}${name}"]
         ],
         path => '/bin:/usr/bin',
         command => "rm ${puppetizer_runtime}.lock",
@@ -198,8 +200,6 @@ define g_docker::run(
     volumes => $volumes,
     puppetized => $puppetizer_config != undef
   }
-  
-  $service_prefix = 'docker-'
   
   $_safe_env = $env.map | $k, $v | {
     $_escaped_v = shell_escape(String($v))
