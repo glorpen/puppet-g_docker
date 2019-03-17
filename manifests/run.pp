@@ -71,14 +71,35 @@ define g_docker::run(
     }
     
     if $ensure == 'present' {
-      # run puppet apply when config changed
-      File[$puppetizer_runtime]~>
-      exec { "puppetizer runtime apply for docker-${name}":
-        require => Docker::Run[$name],
+      # run apply when yaml changed and service is not refreshing
+      
+      exec {"puppetizer runtime semaphore for docker-${name}":
+        require => File[$puppetizer_runtime],
+        subscribe => Docker::Run[$name],
         refreshonly => true,
+        path => '/bin:/usr/bin',
+        command => "touch ${puppetizer_runtime}.lock"
+      }
+      
+      # run puppet apply when config changed
+      exec { "puppetizer runtime apply for docker-${name}":
+        require => Exec["puppetizer runtime semaphore for docker-${name}"],
+        subscribe => File[$puppetizer_runtime],
         tries => 3,
         logoutput => true,
-        command => "/usr/bin/${docker_command} exec '${sanitised_name}' /bin/sh -ec 'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi'"
+        path => '/bin:/usr/bin',
+        unless => "test -f ${puppetizer_runtime}.lock",
+        command => "${docker_command} exec '${sanitised_name}' /bin/sh -ec 'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi'",
+      }
+      
+      exec { "puppetizer runtime cleanup docker-${name}":
+        subscribe => [
+          Exec["puppetizer runtime semaphore for docker-${name}"],
+          Exec["puppetizer runtime semaphore for docker-${name}"]
+        ],
+        path => '/bin:/usr/bin',
+        command => "rm ${puppetizer_runtime}.lock",
+        refreshonly => true,
       }
     }
     
