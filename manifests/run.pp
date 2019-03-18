@@ -15,6 +15,7 @@ define g_docker::run(
   Array[String] $depends_on = [],
   Optional[Array[Variant[String, Integer], 2, 2]] $user = undef,
   Boolean $localtime = true,
+  Hash[String, String] $hosts = {}
 ){
   
   include ::g_docker
@@ -189,7 +190,10 @@ define g_docker::run(
   $_extra_parameters = concat(
     $_params_caps,
     concat($docker_volumes, $docker_mounts, $puppetizer_volumes, $localtime_mount).map | $v | {
-      "\\\n    --mount ${v}"
+      "    --mount ${v}"
+    },
+    $hosts.map | $k, $v | {
+      "    --add-host ${k}:${v}"
     },
     $_user_parameters
   )
