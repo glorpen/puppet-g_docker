@@ -32,11 +32,17 @@ class g_docker(
   contain ::g_docker::firewall
   if $::g_docker::firewall::helper != undef {
     include $::g_docker::firewall::helper
+    
+    Class[::g_docker::firewall]->
+    Class[$::g_docker::firewall::helper]
   }
   
   contain ::g_docker::storage
   if $::g_docker::storage::helper != undef {
     include $::g_docker::storage::helper
+    
+    Class[::g_docker::storage]->
+    Class[$::g_docker::storage::helper]
   }
 
   $puppetizer_conf_path = '/etc/docker/puppetizer.conf.d'
@@ -88,7 +94,7 @@ class g_docker(
     
     extra_parameters => $_docker_params,
     ip_forward => true,
-    * => $::g_docker::firewall::docker_config + $::g_docker::storage:::docker_config
+    * => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config
   }
   
   create_resources(::g_docker::run, $instances)
