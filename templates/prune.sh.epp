@@ -1,0 +1,6 @@
+#!/bin/sh
+
+( \
+    docker system prune -a -f --filter 'until=<%=$auto_prune %>'; \
+    docker system prune --volumes -f; \
+) | grep -v 'Total reclaimed space: 0B'

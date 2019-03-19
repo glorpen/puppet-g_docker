@@ -103,10 +103,24 @@ class g_docker(
   create_resources(::docker::registry, $registries)
   create_resources(::g_docker::network, $networks)
   
+  $prune_script = '/usr/local/bin/g-docker-prune'
+
+  file { $prune_script:
+    ensure => $auto_prune?{
+      undef => 'absent',
+      default => 'file'
+    },
+    content => epp('g_docker/prune.sh.epp', {
+      'interval' => $auto_prune
+    }),
+    mode => 'u=rwx,go=rx'
+  }
+  
   if $auto_prune != undef {
     # prune unused docker data
     cron { 'g_docker-auto-prune':
-      command => "/bin/docker system prune -a -f --filter 'until=${auto_prune}'; /bin/docker system prune --volumes -f",
+      require => File[$prune_script],
+      command => $prune_script,
       user    => 'root',
       * => $auto_prune_options
     }
