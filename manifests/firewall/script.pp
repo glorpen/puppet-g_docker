@@ -1,12 +1,7 @@
 class g_docker::firewall::script {
-  $docker_config = {
-    "iptables" => false,
-    "ip_masq" => false
-  }
-  
+
   include ::stdlib
   ensure_packages(['python-docker-py'], {'ensure'=>'present'})
-  
   
   ['IPv4', 'IPv6'].each | $ip_type | {
     firewallchain { "DOCKER-POSTROUTING:nat:${ip_type}":
@@ -66,6 +61,13 @@ class g_docker::firewall::script {
     chain => 'FORWARD',
     jump => 'DOCKER-FORWARD',
     proto    => 'all'
+  }
+  
+  class { ::g_docker::firewall:
+    docker_config => {
+      "iptables" => false,
+      "ip_masq" => false
+    }
   }
 
 #  file { '/usr/local/bin/docker-firewall':

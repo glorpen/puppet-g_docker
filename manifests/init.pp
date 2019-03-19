@@ -1,11 +1,6 @@
 class g_docker(
-  Enum['noop','native','script'] $firewall_mode = 'noop',
+  String $vg_name, # data vg
   String $data_path = '/mnt/docker',
-  String $basesize,
-  String $vg_name,
-  String $thinpool_name = 'docker-thin',
-  String $thinpool_size,
-  String $thinpool_metadata_size,
   Hash $instances = {},
   Hash $registries = {},
   Optional[String] $ipv6_cidr = undef,
@@ -34,12 +29,17 @@ class g_docker(
     $version_symbol = undef
   }
   
-  $firewall_base = "::g_docker::firewall::${firewall_mode}"
-  contain $firewall_base
+  contain ::g_docker::firewall
+  if $::g_docker::firewall::helper != undef {
+    include $::g_docker::firewall::helper
+  }
+  
+  contain ::g_docker::storage
+  if $::g_docker::storage::helper != undef {
+    include $::g_docker::storage::helper
+  }
 
   $puppetizer_conf_path = '/etc/docker/puppetizer.conf.d'
-  $_vol_name = regsubst($thinpool_name, '-', '--', 'G')
-  $_vg_name = regsubst($vg_name, '-', '--', 'G')
 
   file { $data_path:
     ensure => directory,
@@ -81,25 +81,14 @@ class g_docker(
     }
   }
   
-  # /var/lib/docker -> mostly for volumes data
-  g_server::volumes::thinpool { $thinpool_name:
-    vg_name => $vg_name,
-    size => $thinpool_size,
-    metadata_size => $thinpool_metadata_size
-  }->
   class { ::docker:
     docker_ce_source_location => $_repo_location,
     docker_ce_key_source => $_repo_key,
     log_driver => 'syslog',
-    storage_driver => 'devicemapper',
-    dm_basesize => $basesize,
-    storage_vg => $vg_name,
-    dm_thinpooldev => "/dev/mapper/${_vg_name}-${_vol_name}",
-    dm_blkdiscard => true,
     
     extra_parameters => $_docker_params,
     ip_forward => true,
-    * => getvar("${firewall_base}::docker_config")
+    * => $::g_docker::firewall::docker_config + $::g_docker::storage:::docker_config
   }
   
   create_resources(::g_docker::run, $instances)

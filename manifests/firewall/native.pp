@@ -1,10 +1,5 @@
 class g_docker::firewall::native {
   
-  $docker_config = {
-    "iptables" => true,
-    "ip_masq" => true
-  }
-  
   # TODO: passing $bridge parameter or detecting?
   $default_network = $::facts['g_docker']['networks'].filter | $v | {
       $v["options"]["com.docker.network.bridge.default_bridge"] == "true"
@@ -72,34 +67,13 @@ class g_docker::firewall::native {
     purge => false,
     require => Class['docker']
   }
-
-  if $::g_docker::version != undef and $::g_docker::version_symbol == 'ce' {
-      $_isolation_single = $::g_docker::version <= SemVer('18.3.0')
-      $_isolation_stage = ! $_isolation_single
-  } else {
-    # not sure, so to be safe enable both
-    $_isolation_single = true
-    $_isolation_stage = true
-  }
-
-  if $_isolation_single {
-    firewallchain { "DOCKER-ISOLATION:filter:IPv4":
-      ensure => present,
-      purge => false,
-      require => Class['docker']
-    }
-  }
   
-  if $_isolation_stage {
-    firewallchain { "DOCKER-ISOLATION-STAGE-1:filter:IPv4":
-      ensure => present,
-      purge => false,
-      require => Class['docker']
-    }
-    firewallchain { "DOCKER-ISOLATION-STAGE-2:filter:IPv4":
-      ensure => present,
-      purge => false,
-      require => Class['docker']
+  class { ::g_docker::firewall:
+    helper => 'g_docker::firewall::native_helper',
+    run_type => 'g_docker::firewall::native_run',
+    docker_config => {
+      "iptables" => true,
+      "ip_masq" => true
     }
   }
   
@@ -124,8 +98,4 @@ class g_docker::firewall::native {
     purge => false,
     require => Class['docker']
   }
-
-
-
-
 }

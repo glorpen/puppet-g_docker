@@ -126,14 +126,16 @@ define g_docker::run(
       $_host_port = Integer($_port_info[0])
     }
     
-    create_resources("${::g_docker::firewall_base}_run", {
-      "${name}:${_host_port}:${_protocol}" => {
-        'ensure' => $ensure,
-        'host_port' => $_host_port,
-        'protocol' => $_protocol,
-        'host_network' => $network == 'host'
-      }
-    })
+    if $::g_docker::firewall::run_type != undef {
+      create_resources($::g_docker::firewall::run_type, {
+        "${name}:${_host_port}:${_protocol}" => {
+          'ensure' => $ensure,
+          'host_port' => $_host_port,
+          'protocol' => $_protocol,
+          'host_network' => $network == 'host'
+        }
+      })
+    }
     "${_host_port}:${container_port}/${_protocol}"
   }
   
