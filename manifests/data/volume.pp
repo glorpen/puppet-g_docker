@@ -13,7 +13,7 @@ define g_docker::data::volume(
   
   g_server::volumes::vol { $lv_name:
     ensure => $ensure,
-    vg_name => $::g_docker::vg_name,
+    vg_name => $::g_docker::data_vg_name,
     size => $size,
     mountpoint => $mountpoint,
   }

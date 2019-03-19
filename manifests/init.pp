@@ -1,6 +1,6 @@
 class g_docker(
-  String $vg_name, # data vg
   String $data_path = '/mnt/docker',
+  String $data_vg_name,
   Hash $instances = {},
   Hash $registries = {},
   Optional[String] $ipv6_cidr = undef,
