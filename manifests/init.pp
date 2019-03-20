@@ -11,6 +11,7 @@ class g_docker(
     'hour'    => '*/4',
     'minute'  => 0,
   },
+  String $docker_data_path = '/var/lib/docker'
 ){
   
   include ::stdlib
@@ -94,6 +95,7 @@ class g_docker(
     
     extra_parameters => $_docker_params,
     ip_forward => true,
+    root_dir => $docker_data_path,
     * => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config
   }
   
