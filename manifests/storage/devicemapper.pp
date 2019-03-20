@@ -1,7 +1,7 @@
 class g_docker::storage::devicemapper(
   Enum['present', 'absent'] $ensure = 'present',
   String $basesize,
-  String $vg_name,
+  Optional[String] $vg_name = undef,
   String $thinpool_name = 'docker-thin',
   String $thinpool_size,
   String $thinpool_metadata_size
@@ -14,7 +14,10 @@ class g_docker::storage::devicemapper(
       docker_config => {
         storage_driver => 'devicemapper',
         dm_basesize => $basesize,
-        storage_vg => $vg_name,
+        storage_vg => $vg_name?{
+          undef => $::g_docker::data_vg_name,
+          default => $vg_name
+        },
         dm_thinpooldev => "/dev/mapper/${_vg_name}-${_vol_name}",
         dm_blkdiscard => true,
       }
