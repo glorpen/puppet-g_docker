@@ -210,7 +210,12 @@ define g_docker::run(
   }
   
   $_safe_env = $env.map | $k, $v | {
-    $_escaped_v = shell_escape(String($v))
+    $_escaped_v = regsubst(
+        $v,
+        '("|\'|\\$|\\\\)',
+        '\\\\\1',
+        'G'
+    )
     "${k}=${_escaped_v}"
   }
   
