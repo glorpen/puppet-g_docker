@@ -11,7 +11,8 @@ class g_docker(
     'hour'    => '*/4',
     'minute'  => 0,
   },
-  String $docker_data_path = '/var/lib/docker'
+  String $docker_data_path = '/var/lib/docker',
+  Hash[String, String] $runtime_configs = {}
 ){
   
   include ::stdlib
@@ -47,6 +48,7 @@ class g_docker(
   }
 
   $puppetizer_conf_path = '/etc/docker/puppetizer.conf.d'
+  $runtime_conf_path = '/etc/docker/config.d'
 
   file { $data_path:
     ensure => directory,
@@ -58,6 +60,15 @@ class g_docker(
   }
   
   file { $puppetizer_conf_path:
+    ensure => directory,
+    backup => false,
+    force => true,
+    purge => true,
+    recurse => true,
+    require => Class[::docker]
+  }
+  
+  file { $runtime_conf_path:
     ensure => directory,
     backup => false,
     force => true,
@@ -125,6 +136,11 @@ class g_docker(
       * => $auto_prune_options
     }
   }
-  
 
+  $runtime_configs.each | $name, $source | {
+    file { "${runtime_conf_path}/${name}":
+      ensure => 'present',
+      source => $source
+    }
+  }
 }
