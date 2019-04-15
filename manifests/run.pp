@@ -236,14 +236,16 @@ define g_docker::run(
   }
   
   if $ensure == 'present' {
-    G_docker::Run[$depends_on]
-    ->G_docker::Data[$name]
+    Docker::Run[$depends_on]
+    ->Docker::Run[$name]
+    
+    G_docker::Data[$name]
     ->Docker::Run[$name]
   } else {
     Docker::Run[$name]
     ->G_docker::Data[$name]
-    ->G_docker::Run[$depends_on]
+    
+    Docker::Run[$name]
+    ->Docker::Run[$depends_on]
   }
-  
-  
 }
