@@ -9,17 +9,17 @@ function g_docker::mount_options(
     true => ',readonly',
     default => ''
   }
-  
+
   $_propagation = $propagation?{
     undef => '',
     'rprivate' => '',
     default => ",bind-propagation=${propagation}"
   }
-  
+
   $_type = $type?{
     undef => 'bind',
     default => $type
   }
-  
+
   "type=${_type},source=${source},destination=${destination}${_readonly}${_propagation}"
 }

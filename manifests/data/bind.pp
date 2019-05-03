@@ -14,7 +14,6 @@
 #   [*puppetized*]                 - Informs bind that container is based on puppetized image
 #
 define g_docker::data::bind(
-  Enum['present','absent'] $ensure = 'present',
   String $data_name,
   String $volume_name,
   String $bind_name = $title,
@@ -22,32 +21,33 @@ define g_docker::data::bind(
   Optional[Variant[String, Integer]] $group = undef,
   Optional[String] $mode = undef,
   Optional[String] $source = undef,
-  Boolean $puppetized = false
+  Boolean $puppetized = false,
+  Enum['present','absent'] $ensure = 'present'
 ){
   $lv_name = "${data_name}_${volume_name}"
   $bind_path = "${::g_docker::data_path}/${data_name}/${volume_name}/${bind_name}"
 
   if $ensure == 'present' {
     file { $bind_path:
-      ensure => $ensure?{
+      ensure  => $ensure?{
         'present' => directory,
-        default => $ensure
+        default   => $ensure
       },
-      backup => false,
-      force => true,
+      backup  => false,
+      force   => true,
       recurse => $source?{
-        undef => false,
+        undef   => false,
         default => true
       },
-      owner => $user,
-      group => $group,
-      mode => $mode,
-      source => $source
+      owner   => $user,
+      group   => $group,
+      mode    => $mode,
+      source  => $source
     }
 
     G_server::Volumes::Vol[$lv_name]
     ->File[$bind_path]
-    
+
     if $puppetized {
       File[$bind_path]
       ~>Exec["puppetizer runtime apply for docker-${data_name}"]
@@ -55,7 +55,6 @@ define g_docker::data::bind(
       File[$bind_path]
       ->Docker::Run[$data_name]
     }
-    
   }
 
   # when ensure=absent, volume would be already removed

@@ -9,22 +9,22 @@ class g_docker::firewall::native_helper {
   }
 
   if $_isolation_single {
-    firewallchain { "DOCKER-ISOLATION:filter:IPv4":
-      ensure => present,
-      purge => false,
+    firewallchain { 'DOCKER-ISOLATION:filter:IPv4':
+      ensure  => present,
+      purge   => false,
       require => Class['docker']
     }
   }
-  
+
   if $_isolation_stage {
-    firewallchain { "DOCKER-ISOLATION-STAGE-1:filter:IPv4":
-      ensure => present,
-      purge => false,
+    firewallchain { 'DOCKER-ISOLATION-STAGE-1:filter:IPv4':
+      ensure  => present,
+      purge   => false,
       require => Class['docker']
     }
-    firewallchain { "DOCKER-ISOLATION-STAGE-2:filter:IPv4":
-      ensure => present,
-      purge => false,
+    firewallchain { 'DOCKER-ISOLATION-STAGE-2:filter:IPv4':
+      ensure  => present,
+      purge   => false,
       require => Class['docker']
     }
   }
