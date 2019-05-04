@@ -10,14 +10,15 @@ class g_docker::storage::devicemapper(
   $_vg_name = regsubst($vg_name, '-', '--', 'G')
 
   if $ensure == 'present' {
-    class {::g_docker::storage:
+    $_storage_vg = $vg_name?{
+      undef   => $::g_docker::data_vg_name,
+      default => $vg_name
+    }
+    class {'g_docker::storage':
       docker_config => {
         storage_driver => 'devicemapper',
         dm_basesize    => $basesize,
-        storage_vg     => $vg_name?{
-          undef   => $::g_docker::data_vg_name,
-          default => $vg_name
-        },
+        storage_vg     => $_storage_vg,
         dm_thinpooldev => "/dev/mapper/${_vg_name}-${_vol_name}",
         dm_blkdiscard  => true,
       }

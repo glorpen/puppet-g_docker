@@ -1,6 +1,6 @@
 class g_docker::firewall::script {
 
-  include ::stdlib
+  include stdlib
   ensure_packages(['python-docker-py'], {'ensure'=>'present'})
 
   ['IPv4', 'IPv6'].each | $ip_type | {
@@ -63,7 +63,7 @@ class g_docker::firewall::script {
     proto => 'all'
   }
 
-  class { ::g_docker::firewall:
+  class { 'g_docker::firewall':
     docker_config => {
       'iptables' => false,
       'ip_masq'  => false

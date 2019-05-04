@@ -28,17 +28,19 @@ define g_docker::data::bind(
   $bind_path = "${::g_docker::data_path}/${data_name}/${volume_name}/${bind_name}"
 
   if $ensure == 'present' {
+    $_bind_path_ensure = $ensure?{
+      'present' => directory,
+      default   => $ensure
+    }
+    $_bind_path_recurse = $source?{
+      undef   => false,
+      default => true
+    }
     file { $bind_path:
-      ensure  => $ensure?{
-        'present' => directory,
-        default   => $ensure
-      },
+      ensure  => $_bind_path_ensure,
       backup  => false,
       force   => true,
-      recurse => $source?{
-        undef   => false,
-        default => true
-      },
+      recurse => $_bind_path_recurse,
       owner   => $user,
       group   => $group,
       mode    => $mode,

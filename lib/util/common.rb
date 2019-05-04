@@ -1,6 +1,6 @@
 module Facter::Util::Docker
   def self.underscore(s)
-    s.split(/([A-Z]+[a-z0-9]*)/).reject(&:empty?).join('_').downcase
+    s.split(%r{([A-Z]+[a-z0-9]*)}).reject(&:empty?).join('_').downcase
   end
 
   def self.underscore_hash(h)

@@ -1,6 +1,6 @@
 class g_docker(
-  String $data_path = '/mnt/docker',
   String $data_vg_name,
+  String $data_path = '/mnt/docker',
   Hash $instances = {},
   Hash $registries = {},
   Optional[String] $ipv6_cidr = undef,
@@ -12,10 +12,11 @@ class g_docker(
     'minute'  => 0,
   },
   String $docker_data_path = '/var/lib/docker',
-  Hash[String, String] $runtime_configs = {}
+  Hash[String, String] $runtime_configs = {},
+  Boolean $puppetizer = false
 ){
 
-  include ::stdlib
+  include stdlib
 
   if $::facts["g_docker"]["installed"] {
     $_ver = $::facts["g_docker"]["version"]
@@ -31,7 +32,7 @@ class g_docker(
     $version_symbol = undef
   }
 
-  contain ::g_docker::firewall
+  contain g_docker::firewall
   if $::g_docker::firewall::helper != undef {
     include $::g_docker::firewall::helper
 
@@ -39,7 +40,7 @@ class g_docker(
     ->Class[$::g_docker::firewall::helper]
   }
 
-  contain ::g_docker::storage
+  contain g_docker::storage
   if $::g_docker::storage::helper != undef {
     include $::g_docker::storage::helper
 
@@ -59,13 +60,17 @@ class g_docker(
     recurselimit => 2 # /mnt/docker/<container name>/<bind name>
   }
 
+  $_puppetizer_dir_ensure = $puppetizer?{
+    true    => directory,
+    default => absent
+  }
   file { $puppetizer_conf_path:
-    ensure  => directory,
+    ensure  => $_puppetizer_dir_ensure,
     backup  => false,
     force   => true,
     purge   => true,
     recurse => true,
-    require => Class[::docker]
+    require => Class['docker']
   }
 
   file { $runtime_conf_path:
@@ -74,7 +79,7 @@ class g_docker(
     force   => true,
     purge   => true,
     recurse => true,
-    require => Class[::docker]
+    require => Class['docker']
   }
 
   if $ipv6_cidr == undef {
@@ -89,17 +94,21 @@ class g_docker(
   $_docker_params = concat(['--userland-proxy=false'], $_docker_ipv6_params, $_docker_insecure_reg_params)
 
   case $::facts['os']['name'] {
-    'Centos' : {
+    'Centos': {
       $_repo_location = "https://download.docker.com/linux/centos/${::operatingsystemmajrelease}/\$basearch/stable"
       $_repo_key = 'https://download.docker.com/linux/centos/gpg'
     }
-    'Fedora' : {
+    'Fedora': {
       $_repo_location = "https://download.docker.com/linux/fedora/${::operatingsystemmajrelease}/\$basearch/stable"
       $_repo_key = 'https://download.docker.com/linux/fedora/gpg'
     }
+    default: {
+      $_repo_location = undef
+      $_repo_key = undef
+    }
   }
 
-  class { ::docker:
+  class { 'docker':
     docker_ce_source_location => $_repo_location,
     docker_ce_key_source      => $_repo_key,
     log_driver                => 'syslog',
@@ -116,11 +125,12 @@ class g_docker(
 
   $prune_script = '/usr/local/bin/g-docker-prune'
 
+  $_autoprune_ensure = $auto_prune?{
+    undef   => 'absent',
+    default => 'file'
+  }
   file { $prune_script:
-    ensure  => $auto_prune?{
-      undef   => 'absent',
-      default => 'file'
-    },
+    ensure  => $_autoprune_ensure,
     content => epp('g_docker/prune.sh.epp', {
       'interval' => $auto_prune
     }),

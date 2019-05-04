@@ -5,11 +5,12 @@ define g_docker::data(
 ){
   include ::g_docker
 
+  $_data_ensure = $ensure?{
+    'present' => directory,
+    default   => $ensure
+  }
   file { "${::g_docker::data_path}/${name}":
-    ensure => $ensure?{
-      'present' => directory,
-      default   => $ensure
-    },
+    ensure => $_data_ensure,
     backup => false,
     force  => true,
   }

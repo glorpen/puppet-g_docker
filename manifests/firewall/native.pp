@@ -2,7 +2,9 @@ class g_docker::firewall::native {
 
   # TODO: passing $bridge parameter or detecting?
   $default_network = $::facts['g_docker']['networks'].filter | $v | {
+      # lint:ignore:quoted_booleans
       $v['options']['com.docker.network.bridge.default_bridge'] == 'true'
+      # lint:endignore
   }[0]
 
   if $default_network == undef {
@@ -68,7 +70,7 @@ class g_docker::firewall::native {
     require => Class['docker']
   }
 
-  class { ::g_docker::firewall:
+  class { 'g_docker::firewall':
     helper        => 'g_docker::firewall::native_helper',
     run_type      => 'g_docker::firewall::native_run',
     docker_config => {

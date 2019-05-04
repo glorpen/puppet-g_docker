@@ -53,16 +53,21 @@ define g_docker::run(
     $localtime_mount = []
   }
 
-  if $puppetizer_config_content == undef and $puppetizer_config_source == undef {
-    $puppetizer_volumes = []
-  } else {
+  $_is_puppetized = $::g_docker::puppetizer and ( $puppetizer_config_content != undef or $puppetizer_config_source != undef )
+  #TODO: error/warn if global puppetizer flag is disabled but puppetized runtimes are defined for run
+
+  if $_is_puppetized {
+    $puppetizer_apply_command = '/bin/sh -ec \'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi\''
     $puppetizer_runtime_dir = "${::g_docker::puppetizer_conf_path}/${name}"
     $puppetizer_runtime = "${puppetizer_runtime_dir}/runtime.yaml"
+    $_runtime_dir_ensure = $ensure?{
+      'present' => 'directory',
+      default   => 'absent',
+    }
+
+    # upon switching to not puppetized runtime dir will be cleaned up by parent directory
     file { $puppetizer_runtime_dir:
-      ensure  => $ensure?{
-        'present' => 'directory',
-        default   => 'absent',
-      },
+      ensure  => $_runtime_dir_ensure,
       recurse => true,
       backup  => false,
       force   => true
@@ -94,7 +99,7 @@ define g_docker::run(
         refreshonly => true,
         path        => '/bin:/usr/bin',
         unless      => "test -f ${puppetizer_runtime}.lock",
-        command     => "${docker_command} exec '${sanitised_name}' /bin/sh -ec 'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi'",
+        command     => "${docker_command} exec '${sanitised_name}' ${puppetizer_apply_command}",
       }
 
       exec { "puppetizer runtime cleanup ${service_prefix}${name}":
@@ -111,6 +116,8 @@ define g_docker::run(
     $puppetizer_volumes = [
       g_docker::mount_options('bind', $puppetizer_runtime_dir, '/var/opt/puppetizer/hiera', true)
     ]
+  } else {
+    $puppetizer_volumes = []
   }
 
   $docker_ports = $ports.map | $host_port_info, $container_port | {
@@ -200,13 +207,14 @@ define g_docker::run(
     $_user_parameters
   )
 
+  $_data_ensure = $volumes.empty?{
+    true    => absent,
+    default => $ensure
+  }
   g_docker::data { $name:
-    ensure     => $volumes.empty?{
-      true    => absent,
-      default => $ensure
-    },
+    ensure     => $_data_ensure,
     volumes    => $volumes,
-    puppetized => $puppetizer_config != undef
+    puppetized => $_is_puppetized
   }
 
   $_safe_env = $env.map | $k, $v | {

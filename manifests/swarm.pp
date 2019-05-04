@@ -8,15 +8,17 @@ class g_docker::swarm(
   $vg_name = $::g_docker::data_vg_name
   $cluster_addr = $::facts['networking']['interfaces'][$cluster_iface]['ip']
 
+  $_swarm_init = $manager_ip?{
+    undef   => true,
+    default => false
+  }
+  $_swarm_join = $manager_ip?{
+    undef   => false,
+    default => true
+  }
   ::docker::swarm { $::fqdn:
-    init           => $manager_ip?{
-      undef   => true,
-      default => false
-    },
-    join           => $manager_ip?{
-      undef   => false,
-      default => true
-    },
+    init           => $_swarm_init,
+    join           => $_swarm_join,
     manager_ip     => $manager_ip,
     advertise_addr => $cluster_addr,
     listen_addr    => $cluster_addr,

@@ -1,20 +1,7 @@
 require 'json'
 
-begin
-  require 'facter/util/common'
-  require 'facter/util/http_unix'
-rescue LoadError => e
-  # puppet apply does not add module lib directories to the $LOAD_PATH (See
-  # #4248). It should (in the future) but for the time being we need to be
-  # defensive which is what this rescue block is doing.
-  ['common.rb', 'http_unix.rb'].each do |fname|
-    rb_file = File.join(File.dirname(File.dirname(__FILE__)), 'util', fname)
-    load rb_file if File.exist?(rb_file) or raise e
-  end
-end
-
 Facter.add(:g_docker) do
-  confine :kernel => :linux
+  confine kernel => :linux
   setcode do
     networks = []
     version = nil
@@ -27,11 +14,7 @@ Facter.add(:g_docker) do
       req = Net::HTTP::Get.new('/networks')
       data_networks = JSON.parse(client.request(req).body)
 
-      networks = data_networks.map do |v|
-        Facter::Util::Docker.underscore_hash(v)
-      end.sort do |a, b|
-        a['id'] <=> b['id']
-      end
+      networks = data_networks.map { |v| Facter::Util::Docker.underscore_hash(v) }.sort_by { |a| a['id'] }
 
       req = Net::HTTP::Get.new('/version')
       data_version = JSON.parse(client.request(req).body)
@@ -39,7 +22,7 @@ Facter.add(:g_docker) do
       version = data_version['Version']
 
       installed = true
-    rescue Exception => e
+    rescue StandardError => e
       Facter.debug("Failed to load api data as fact: #{e.class}: #{e}")
     end
 
