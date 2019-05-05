@@ -1,0 +1,77 @@
+{
+  "name": "glorpen-g_docker",
+  "version": "0.9.0",
+  "author": "Arkadiusz Dzięgiel",
+  "summary": "Manages Docker containers, its volumes and configs.",
+  "license": "GPL-3.0+",
+  "source": "https://github.com/glorpen/puppet-g_docker.git",
+  "project_page": "https://github.com/glorpen/puppet-g_docker",
+  "issues_url": "https://github.com/glorpen/puppet-g_docker/issues",
+  "dependencies": [
+    {
+      "name": "puppetlabs/stdlib",
+      "version_requirement": ">=4.0.0 <5.0.0"
+    },
+    {
+      "name": "glorpen/g_server",
+      "version_requirement": ">=2.0.0 <3.0.0"
+    },
+    {
+      "name": "glorpen/g_firewall",
+      "version_requirement": ">=0.3.1 <1.0.0"
+    }
+  ],
+  "operatingsystem_support": [
+    {
+      "operatingsystem": "CentOS",
+      "operatingsystemrelease": [
+        "7"
+      ]
+    },
+    {
+      "operatingsystem": "OracleLinux",
+      "operatingsystemrelease": [
+        "7"
+      ]
+    },
+    {
+      "operatingsystem": "RedHat",
+      "operatingsystemrelease": [
+        "7"
+      ]
+    },
+    {
+      "operatingsystem": "Scientific",
+      "operatingsystemrelease": [
+        "7"
+      ]
+    },
+    {
+      "operatingsystem": "Debian",
+      "operatingsystemrelease": [
+        "8"
+      ]
+    },
+    {
+      "operatingsystem": "Ubuntu",
+      "operatingsystemrelease": [
+        "16.04"
+      ]
+    },
+    {
+      "operatingsystem": "Fedora",
+      "operatingsystemrelease": [
+        "25"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "name": "puppet",
+      "version_requirement": ">= 4.10.0 < 7.0.0"
+    }
+  ],
+  "pdk-version": "1.10.0",
+  "template-url": "file:///opt/puppetlabs/pdk/share/cache/pdk-templates.git#1.10.0",
+  "template-ref": "1.10.0-0-gbba9ac3"
+}
