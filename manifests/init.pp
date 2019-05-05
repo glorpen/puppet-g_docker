@@ -12,7 +12,12 @@ class g_docker(
     'minute'  => 0,
   },
   String $docker_data_path = '/var/lib/docker',
-  Hash[String, String] $runtime_configs = {}
+  Hash[String, String] $runtime_configs = {},
+  String $log_driver = 'syslog',
+  Enum['debug', 'info', 'warn', 'error', 'fatal'] $log_level = 'info',
+  Hash[String, String] $log_options = {},
+  Optional[String] $tcp_bind = undef, #host:port
+  Optional[String] $socket_bind = '/var/run/docker.sock'
 ){
   
   include ::stdlib
@@ -102,11 +107,23 @@ class g_docker(
   class { ::docker:
     docker_ce_source_location => $_repo_location,
     docker_ce_key_source => $_repo_key,
-    log_driver => 'syslog',
     
     extra_parameters => $_docker_params,
     ip_forward => true,
     root_dir => $docker_data_path,
+    log_level => $log_level,
+    log_driver => $log_driver,
+    log_opt => $log_options.map |$k, $v| {
+      "${k}=${v}"
+    },
+    socket_bind => $socket_bind?{
+      undef   => undef,
+      default => "unix://${socket_bind}"
+    },
+    tcp_bind => $tcp_bind?{
+      undef   => undef,
+      default => "tcp://${tcp_bind}"
+    },
     * => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config
   }
   
