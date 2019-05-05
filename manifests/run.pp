@@ -2,10 +2,11 @@ define g_docker::run(
   String $image,
   Enum['present','absent'] $ensure = 'present',
   Hash[String, Hash] $volumes = {},
-  Hash[Stdlib::Absolutepath, Hash] $mounts = {},
+  Hash[Stdlib::AbsolutePath, Hash] $mounts = {},
   Hash $ports = {},
-  Optional[String] $puppetizer_config_source = undef,
-  Optional[String] $puppetizer_config_content = undef,
+  #Optional[String] $puppetizer_config_source = undef,
+  #Optional[String] $puppetizer_config_content = undef,
+  #Boolean $hot_reloading = false, # asd bind/data option for binds?
   Array[Variant[String,Hash]] $networks = [],
   Array[String] $capabilities = [],
   String $network = 'bridge',
@@ -15,14 +16,14 @@ define g_docker::run(
   Array[String] $depends_on = [],
   Optional[Array[Variant[String, Integer], 2, 2]] $user = undef,
   Boolean $localtime = true,
-  Hash[String, String] $hosts = {}
+  Hash[String, String] $hosts = {},
+  Hash[String, Hash] $runtime_configs = {}
 ){
 
   include ::g_docker
 
   $docker_command = $::docker::docker_command
   $sanitised_name = ::docker::sanitised_name($name)
-  $service_prefix = 'docker-'
 
   # TODO: make function
   $docker_volumes = $volumes.map | $data_name, $data_config | {
@@ -53,72 +54,19 @@ define g_docker::run(
     $localtime_mount = []
   }
 
-  $_is_puppetized = $::g_docker::puppetizer and ( $puppetizer_config_content != undef or $puppetizer_config_source != undef )
-  #TODO: error/warn if global puppetizer flag is disabled but puppetized runtimes are defined for run
-
-  if $_is_puppetized {
-    $puppetizer_apply_command = '/bin/sh -ec \'if [ -f /var/opt/puppetizer/initialized ]; then /opt/puppetizer/bin/apply; fi\''
-    $puppetizer_runtime_dir = "${::g_docker::puppetizer_conf_path}/${name}"
-    $puppetizer_runtime = "${puppetizer_runtime_dir}/runtime.yaml"
-    $_runtime_dir_ensure = $ensure?{
-      'present' => 'directory',
-      default   => 'absent',
+  $config_volumes = $runtime_configs.map |$group_name, $group| {
+    $group_config = $group - 'target'
+    g_docker::runtime_config::group { "${name}:${group_name}":
+      container  => $name,
+      group_name => $group_name,
+      *          => $group_config
     }
-
-    # upon switching to not puppetized runtime dir will be cleaned up by parent directory
-    file { $puppetizer_runtime_dir:
-      ensure  => $_runtime_dir_ensure,
-      recurse => true,
-      backup  => false,
-      force   => true
-    }
-    ->file { $puppetizer_runtime:
-      ensure  => $ensure,
-      source  => $puppetizer_config_source,
-      content => $puppetizer_config_content,
-      require => File[$::g_docker::puppetizer_conf_path],
-    }
-
-    if $ensure == 'present' {
-      # run apply when yaml changed and service is not refreshing
-
-      exec {"puppetizer runtime semaphore for ${service_prefix}${name}":
-        require     => File[$puppetizer_runtime],
-        subscribe   => Service["${service_prefix}${sanitised_name}"],
-        refreshonly => true,
-        path        => '/bin:/usr/bin',
-        command     => "touch ${puppetizer_runtime}.lock"
-      }
-
-      # run puppet apply when config changed
-      exec { "puppetizer runtime apply for ${service_prefix}${name}":
-        require     => Exec["puppetizer runtime semaphore for ${service_prefix}${name}"],
-        subscribe   => File[$puppetizer_runtime],
-        tries       => 3,
-        logoutput   => true,
-        refreshonly => true,
-        path        => '/bin:/usr/bin',
-        unless      => "test -f ${puppetizer_runtime}.lock",
-        command     => "${docker_command} exec '${sanitised_name}' ${puppetizer_apply_command}",
-      }
-
-      exec { "puppetizer runtime cleanup ${service_prefix}${name}":
-        subscribe   => [
-          Exec["puppetizer runtime semaphore for ${service_prefix}${name}"],
-          Exec["puppetizer runtime semaphore for ${service_prefix}${name}"]
-        ],
-        path        => '/bin:/usr/bin',
-        command     => "rm ${puppetizer_runtime}.lock",
-        refreshonly => true,
-      }
-    }
-
-    $puppetizer_volumes = [
-      g_docker::mount_options('bind', $puppetizer_runtime_dir, '/var/opt/puppetizer/hiera', true)
-    ]
-  } else {
-    $puppetizer_volumes = []
+    $group_path = "${::g_docker::runtime_config_path}/${sanitised_name}/${group_name}"
+    # mount dirs only, since puppet replaces single file and changes inode so it will not update on container side
+    g_docker::mount_options('bind', "${group_path}/", $group['target'], true)
   }
+
+  #TODO: no error checking when SIGHUP reload, but no error checking on container start as it is detached..
 
   $docker_ports = $ports.map | $host_port_info, $container_port | {
     if ($host_port_info =~ Integer) {
@@ -198,7 +146,7 @@ define g_docker::run(
 
   $_extra_parameters = concat(
     $_params_caps,
-    concat($docker_volumes, $docker_mounts, $puppetizer_volumes, $localtime_mount).map | $v | {
+    concat($docker_volumes, $docker_mounts, $config_volumes, $localtime_mount).map | $v | {
       "    --mount ${v}"
     },
     $hosts.map | $k, $v | {
@@ -212,9 +160,8 @@ define g_docker::run(
     default => $ensure
   }
   g_docker::data { $name:
-    ensure     => $_data_ensure,
-    volumes    => $volumes,
-    puppetized => $_is_puppetized
+    ensure  => $_data_ensure,
+    volumes => $volumes
   }
 
   $_safe_env = $env.map | $k, $v | {
@@ -238,7 +185,7 @@ define g_docker::run(
     env                       => $_safe_env,
     command                   => $_image_command,
     stop_wait_time            => $stop_wait_time,
-    service_prefix            => $service_prefix,
+    service_prefix            => $::g_docker::service_prefix,
     after_create              => $network_commands.join("\n"),
     depends                   => $depends_on
   }

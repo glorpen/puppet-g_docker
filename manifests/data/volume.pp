@@ -3,7 +3,6 @@ define g_docker::data::volume(
   String $size,
   String $volume_name = $title,
   Hash[String, Hash] $binds = {},
-  Boolean $puppetized = false,
   Enum['present','absent'] $ensure = 'present'
 ){
   include ::g_docker
@@ -21,7 +20,6 @@ define g_docker::data::volume(
   $binds.each | $bind_name, $bind_conf | {
     ::g_docker::data::bind { "${data_name}:${volume_name}:${bind_name}":
       ensure      => $ensure,
-      puppetized  => $puppetized,
       data_name   => $data_name,
       volume_name => $volume_name,
       bind_name   => $bind_name,

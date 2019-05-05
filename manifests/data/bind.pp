@@ -11,7 +11,6 @@
 #   [*group*]                      - Host group name/id to use as directory owner
 #   [*mode*]                       - Permissions for directory
 #   [*source*]                     - Set to manage directory content (eg. "puppet:///...")
-#   [*puppetized*]                 - Informs bind that container is based on puppetized image
 #
 define g_docker::data::bind(
   String $data_name,
@@ -20,8 +19,7 @@ define g_docker::data::bind(
   Optional[Variant[String, Integer]] $user = undef,
   Optional[Variant[String, Integer]] $group = undef,
   Optional[String] $mode = undef,
-  Optional[String] $source = undef,
-  Boolean $puppetized = false,
+  #Optional[String] $source = undef,
   Enum['present','absent'] $ensure = 'present'
 ){
   $lv_name = "${data_name}_${volume_name}"
@@ -32,31 +30,20 @@ define g_docker::data::bind(
       'present' => directory,
       default   => $ensure
     }
-    $_bind_path_recurse = $source?{
-      undef   => false,
-      default => true
-    }
     file { $bind_path:
       ensure  => $_bind_path_ensure,
       backup  => false,
       force   => true,
-      recurse => $_bind_path_recurse,
+      recurse => false,
       owner   => $user,
       group   => $group,
       mode    => $mode,
-      source  => $source
+      #source  => $source
     }
 
     G_server::Volumes::Vol[$lv_name]
     ->File[$bind_path]
-
-    if $puppetized {
-      File[$bind_path]
-      ~>Exec["puppetizer runtime apply for docker-${data_name}"]
-    } else {
-      File[$bind_path]
-      ->Docker::Run[$data_name]
-    }
+    ->Docker::Run[$data_name]
   }
 
   # when ensure=absent, volume would be already removed

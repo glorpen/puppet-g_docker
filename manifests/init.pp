@@ -1,6 +1,7 @@
 class g_docker(
   String $data_vg_name,
   String $data_path = '/mnt/docker',
+  String $runtime_config_path = '/etc/docker/config.d',
   Hash $instances = {},
   Hash $registries = {},
   Optional[String] $ipv6_cidr = undef,
@@ -12,8 +13,7 @@ class g_docker(
     'minute'  => 0,
   },
   String $docker_data_path = '/var/lib/docker',
-  Hash[String, String] $runtime_configs = {},
-  Boolean $puppetizer = false
+  String $service_prefix = 'docker-'
 ){
 
   include stdlib
@@ -48,9 +48,6 @@ class g_docker(
     ->Class[$::g_docker::storage::helper]
   }
 
-  $puppetizer_conf_path = '/etc/docker/puppetizer.conf.d'
-  $runtime_conf_path = '/etc/docker/config.d'
-
   file { $data_path:
     ensure       => directory,
     backup       => false,
@@ -60,20 +57,7 @@ class g_docker(
     recurselimit => 2 # /mnt/docker/<container name>/<bind name>
   }
 
-  $_puppetizer_dir_ensure = $puppetizer?{
-    true    => directory,
-    default => absent
-  }
-  file { $puppetizer_conf_path:
-    ensure  => $_puppetizer_dir_ensure,
-    backup  => false,
-    force   => true,
-    purge   => true,
-    recurse => true,
-    require => Class['docker']
-  }
-
-  file { $runtime_conf_path:
+  file { $runtime_config_path:
     ensure  => directory,
     backup  => false,
     force   => true,
@@ -138,19 +122,13 @@ class g_docker(
   }
 
   if $auto_prune != undef {
+    include cron
     # prune unused docker data
-    cron { 'g_docker-auto-prune':
+    cron::job { 'g_docker-auto-prune':
       require => File[$prune_script],
       command => $prune_script,
       user    => 'root',
       *       => $auto_prune_options
-    }
-  }
-
-  $runtime_configs.each | $name, $source | {
-    file { "${runtime_conf_path}/${name}":
-      ensure => 'present',
-      source => $source
     }
   }
 }
