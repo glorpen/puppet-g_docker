@@ -5,12 +5,19 @@ define g_docker::runtime_config::group(
   Optional[String] $source = undef
 ){
   $sanitised_name = ::docker::sanitised_name($container)
-  $group_relative_path = "${sanitised_name}/${group_name}"
-  $group_path = "${::g_docker::runtime_config_path}/${group_relative_path}"
+  $container_path = "${::g_docker::runtime_config_path}/${sanitised_name}"
+  $group_path = "${container_path}/${group_name}"
 
+  ensure_resource('file', $container_path, {
+    ensure => directory,
+    recurse => true,
+    backup => false
+  })
   file { $group_path:
     ensure => directory,
-    source => $source
+    source => $source,
+    recurse => true,
+    backup => false
   }
 
   if ! $source {

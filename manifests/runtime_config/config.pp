@@ -30,11 +30,11 @@ define g_docker::runtime_config::config (
     $semaphore_name = "g_docker runtime config semaphore for ${container}"
 
     ensure_resource('exec', $semaphore_name, {
-      after       => File[$container_config_path],
-      subscribe   => Service["${::g_docker::service_prefix}${sanitised_name}"],
-      refreshonly => true,
-      path        => '/bin:/usr/bin',
-      command     => "touch ${lock_file}"
+      'require'     => File[$container_config_path],
+      'subscribe'   => Service["${::g_docker::service_prefix}${sanitised_name}"],
+      'refreshonly' => true,
+      'path'        => '/bin:/usr/bin',
+      'command'     => "touch ${lock_file}"
     })
 
     # do not trigger reload if service is restarting
@@ -42,19 +42,18 @@ define g_docker::runtime_config::config (
       'refreshonly' => true,
       'path'        => '/bin:/usr/bin',
       'command'     => "docker kill -s ${signal} ${sanitised_name}",
-      'after'       => Docker::Run[$container],
-      'require'     => Exec[$semaphore_name],
+      'require'     => [Exec[$semaphore_name], Docker::Run[$container]],
       'tries'       => 3,
       'unless'      => "test -f ${lock_file}"
     })
 
     ensure_resource('exec', "g_docker runtime config cleanup ${container}", {
-      subscribe   => [
+      'subscribe'   => [
         Exec[$semaphore_name]
       ],
-      path        => '/bin:/usr/bin',
-      command     => "rm ${lock_file}",
-      refreshonly => true
+      'path'        => '/bin:/usr/bin',
+      'command'     => "rm ${lock_file}",
+      'refreshonly' => true
     })
 
     File[$config_file]
