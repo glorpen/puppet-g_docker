@@ -4,9 +4,6 @@ define g_docker::run(
   Hash[String, Hash] $volumes = {},
   Hash[Stdlib::AbsolutePath, Hash] $mounts = {},
   Hash $ports = {},
-  #Optional[String] $puppetizer_config_source = undef,
-  #Optional[String] $puppetizer_config_content = undef,
-  #Boolean $hot_reloading = false, # asd bind/data option for binds?
   Array[Variant[String,Hash]] $networks = [],
   Array[String] $capabilities = [],
   String $network = 'bridge',

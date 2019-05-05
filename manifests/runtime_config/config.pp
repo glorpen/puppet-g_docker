@@ -26,7 +26,7 @@ define g_docker::runtime_config::config (
 
   if ($container and $signal) {
     $lock_file = "${container_config_path}/.no-reload"
-    $reload_name = "docker runtime config ${container}"
+    $reload_name = "g_docker runtime config ${container}"
     $semaphore_name = "g_docker runtime config semaphore for ${container}"
 
     ensure_resource('exec', $semaphore_name, {
@@ -49,7 +49,8 @@ define g_docker::runtime_config::config (
 
     ensure_resource('exec', "g_docker runtime config cleanup ${container}", {
       'subscribe'   => [
-        Exec[$semaphore_name]
+        Exec[$semaphore_name],
+        Exec[$reload_name]
       ],
       'path'        => '/bin:/usr/bin',
       'command'     => "rm ${lock_file}",
@@ -57,6 +58,6 @@ define g_docker::runtime_config::config (
     })
 
     File[$config_file]
-    ->Exec[$reload_name]
+    ~>Exec[$reload_name]
   }
 }

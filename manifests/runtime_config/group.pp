@@ -9,15 +9,15 @@ define g_docker::runtime_config::group(
   $group_path = "${container_path}/${group_name}"
 
   ensure_resource('file', $container_path, {
-    ensure => directory,
+    ensure  => directory,
     recurse => true,
-    backup => false
+    backup  => false
   })
   file { $group_path:
-    ensure => directory,
-    source => $source,
+    ensure  => directory,
+    source  => $source,
     recurse => true,
-    backup => false
+    backup  => false
   }
 
   if ! $source {

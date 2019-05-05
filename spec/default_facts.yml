@@ -1,0 +1,22 @@
+# Use default_module_facts.yml for module specific facts.
+#
+# Facts specified here will override the values provided by rspec-puppet-facts.
+---
+ipaddress: "172.16.254.254"
+is_pe: false
+macaddress: "AA:AA:AA:AA:AA:AA"
+architecture: x86_64
+iptables_version: "1"
+ip6tables_version: "1"
+os:
+  family: 'RedHat'
+  name: 'CentOS'
+  release:
+    major: 7
+osfamily: 'RedHat'
+operatingsystem: 'CentOS'
+operatingsystemrelease: '7.0.0'
+operatingsystemmajrelease: "7"
+g_docker:
+  installed: true
+  version: 18.9.5
