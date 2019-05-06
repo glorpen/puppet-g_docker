@@ -51,16 +51,21 @@ define g_docker::run(
     $localtime_mount = []
   }
 
-  $config_volumes = $runtime_configs.map |$group_name, $group| {
-    $group_config = $group - 'target'
-    g_docker::runtime_config::group { "${name}:${group_name}":
-      container  => $name,
-      group_name => $group_name,
-      *          => $group_config
+  if $ensure == 'present' {
+    # when absent should be cleaned by parent dir
+    $config_volumes = $runtime_configs.map |$group_name, $group| {
+      $group_config = $group - 'target'
+      g_docker::runtime_config::group { "${name}:${group_name}":
+        container  => $name,
+        group_name => $group_name,
+        *          => $group_config
+      }
+      $group_path = "${::g_docker::runtime_config_path}/${sanitised_name}/${group_name}"
+      # mount dirs only, since puppet replaces single file and changes inode so it will not update on container side
+      g_docker::mount_options('bind', "${group_path}/", $group['target'], true)
     }
-    $group_path = "${::g_docker::runtime_config_path}/${sanitised_name}/${group_name}"
-    # mount dirs only, since puppet replaces single file and changes inode so it will not update on container side
-    g_docker::mount_options('bind', "${group_path}/", $group['target'], true)
+  } else {
+    $config_volumes = []
   }
 
   #TODO: no error checking when SIGHUP reload, but no error checking on container start as it is detached..
