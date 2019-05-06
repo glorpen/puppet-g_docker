@@ -16,7 +16,7 @@ class g_docker(
   String $log_driver = 'syslog',
   Enum['debug', 'info', 'warn', 'error', 'fatal'] $log_level = 'info',
   Hash[String, String] $log_options = {},
-  Optional[String] $tcp_bind = undef, #host:port
+  Variant[String,Array[String],Undef] $tcp_bind = undef, #host:port
   Optional[String] $socket_bind = '/var/run/docker.sock'
 ){
   
@@ -122,7 +122,7 @@ class g_docker(
     },
     tcp_bind => $tcp_bind?{
       undef   => undef,
-      default => "tcp://${tcp_bind}"
+      default => any2array($tcp_bind).map |$v| { "tcp://${v}" }
     },
     * => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config
   }
