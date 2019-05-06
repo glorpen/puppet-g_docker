@@ -25,8 +25,7 @@ define g_docker::data::volume(
       bind_name   => $bind_name,
       user        => $bind_conf['user'],
       group       => $bind_conf['group'],
-      mode        => $bind_conf['mode'],
-      source      => $bind_conf['source']
+      mode        => $bind_conf['mode']
     }
   }
 

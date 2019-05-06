@@ -10,7 +10,6 @@
 #   [*user*]                       - Host user name/id to use as directory owner
 #   [*group*]                      - Host group name/id to use as directory owner
 #   [*mode*]                       - Permissions for directory
-#   [*source*]                     - Set to manage directory content (eg. "puppet:///...")
 #
 define g_docker::data::bind(
   String $data_name,
@@ -19,7 +18,6 @@ define g_docker::data::bind(
   Optional[Variant[String, Integer]] $user = undef,
   Optional[Variant[String, Integer]] $group = undef,
   Optional[String] $mode = undef,
-  #Optional[String] $source = undef,
   Enum['present','absent'] $ensure = 'present'
 ){
   $lv_name = "${data_name}_${volume_name}"
