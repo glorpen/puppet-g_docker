@@ -48,10 +48,8 @@ define g_docker::runtime_config::config (
     })
 
     ensure_resource('exec', "g_docker runtime config cleanup ${container}", {
-      'subscribe'   => [
-        Exec[$semaphore_name],
-        Exec[$reload_name]
-      ],
+      'subscribe'   => Exec[$semaphore_name],
+      'require'     => Exec[$reload_name],
       'path'        => '/bin:/usr/bin',
       'command'     => "rm ${lock_file}",
       'refreshonly' => true
