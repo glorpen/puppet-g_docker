@@ -24,7 +24,7 @@ define g_docker::runtime_config::config (
     content => $content
   }
 
-  if ($container and $signal) {
+  if ($signal) {
     $lock_file = "${container_config_path}/.no-reload"
     $reload_name = "g_docker runtime config ${container}"
     $semaphore_name = "g_docker runtime config semaphore for ${container}"
@@ -57,5 +57,8 @@ define g_docker::runtime_config::config (
 
     File[$config_file]
     ~>Exec[$reload_name]
+  } else {
+    File[$config_file]
+    ~>Docker::Run[$container]
   }
 }
