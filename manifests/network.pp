@@ -18,6 +18,7 @@ define g_docker::network(
     },
     options     => $options.map | $k, $v | {
       "${k}=${v}"
-    }
+    },
+    require => Class['docker']
   }
 }
