@@ -9,7 +9,7 @@ class g_docker::storage::overlay2(
       docker_config => {
         storage_driver => 'overlay2'
       },
-      helper => 'g_docker::storage::overlay2_helper'
+      helper        => 'g_docker::storage::overlay2_helper'
     }
   }
 }

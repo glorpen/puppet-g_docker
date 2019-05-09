@@ -53,9 +53,9 @@ define g_docker::run(
   }
 
   g_docker::runtime_config { $name:
-    ensure => $ensure,
+    ensure        => $ensure,
     reload_signal => $reload_signal,
-    require => Class['docker']
+    require       => Class['docker']
   }
 
   if $ensure == 'present' {

@@ -4,7 +4,7 @@ require_relative '../g_docker_util/http_unix'
 require_relative '../g_docker_util/common'
 
 Facter.add(:g_docker) do
-  confine kernel: "Linux"
+  confine kernel: 'Linux'
   setcode do
     networks = []
     version = nil

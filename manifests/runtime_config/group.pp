@@ -18,7 +18,7 @@ define g_docker::runtime_config::group(
     purge        => true,
     recurselimit => 1
   }
-  
+
   if $source_reload {
     File[$group_path]
     ~>Exec["g_docker runtime config ${container}"]
