@@ -2,22 +2,26 @@ define g_docker::runtime_config::group(
   String $container,
   String $group_name = $name,
   Hash[String, Hash] $configs = {},
-  Optional[String] $source = undef
+  Optional[String] $source = undef,
+  Boolean $source_reload = false
 ){
   $sanitised_name = ::docker::sanitised_name($container)
   $container_path = "${::g_docker::runtime_config_path}/${sanitised_name}"
   $group_path = "${container_path}/${group_name}"
 
-  ensure_resource('file', $container_path, {
-    ensure  => directory,
-    recurse => true,
-    backup  => false
-  })
   file { $group_path:
-    ensure  => directory,
-    source  => $source,
-    recurse => true,
-    backup  => false
+    ensure       => directory,
+    source       => $source,
+    recurse      => true,
+    backup       => false,
+    force        => true,
+    purge        => true,
+    recurselimit => 1
+  }
+  
+  if $source_reload {
+    File[$group_path]
+    ~>Exec["g_docker runtime config ${container}"]
   }
 
   if ! $source {

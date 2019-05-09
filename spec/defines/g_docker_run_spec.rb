@@ -32,11 +32,12 @@ describe 'G_docker::Run' do
     it { is_expected.to compile }
     it 'wraps reload command' do
       is_expected.to contain_docker__run('test')
-      semaphore_name = 'g_docker runtime config semaphore for test'
       reload_name = 'g_docker runtime config test'
+      semaphore_name = 'g_docker runtime config semaphore for test'
       cleanup_name = 'g_docker runtime config cleanup test'
 
-      is_expected.to contain_exec(reload_name).with_command('docker kill -s HUP test').that_requires("Exec[#{semaphore_name}]").that_notifies("Exec[#{cleanup_name}]")
+      is_expected.to contain_exec(reload_name).with_command('docker kill -s HUP test').that_requires("Exec[#{semaphore_name}]")
+      is_expected.to contain_exec(cleanup_name).that_subscribes_to("Exec[#{semaphore_name}]")
       is_expected.to contain_file('/config.d/test/group1/test.yaml').that_notifies("Exec[#{reload_name}]")
     end
   end

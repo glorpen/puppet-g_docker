@@ -14,7 +14,8 @@ define g_docker::run(
   Optional[Array[Variant[String, Integer], 2, 2]] $user = undef,
   Boolean $localtime = true,
   Hash[String, String] $hosts = {},
-  Hash[String, Hash] $runtime_configs = {}
+  Hash[String, Hash] $runtime_configs = {},
+  Enum['HUP','USR1', 'USR2'] $reload_signal = 'HUP',
 ){
 
   include ::g_docker
@@ -51,6 +52,12 @@ define g_docker::run(
     $localtime_mount = []
   }
 
+  g_docker::runtime_config { $name:
+    ensure => $ensure,
+    reload_signal => $reload_signal,
+    require => Class['docker']
+  }
+
   if $ensure == 'present' {
     # when absent should be cleaned by parent dir
     $config_volumes = $runtime_configs.map |$group_name, $group| {
@@ -67,8 +74,6 @@ define g_docker::run(
   } else {
     $config_volumes = []
   }
-
-  #TODO: no error checking when SIGHUP reload, but no error checking on container start as it is detached..
 
   $docker_ports = $ports.map | $host_port_info, $container_port | {
     if ($host_port_info =~ Integer) {
