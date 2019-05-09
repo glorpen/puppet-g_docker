@@ -18,7 +18,8 @@ class g_docker(
   Enum['debug', 'info', 'warn', 'error', 'fatal'] $log_level = 'info',
   Hash[String, String] $log_options = {},
   Variant[String,Array[String],Undef] $tcp_bind = undef, #host:port
-  Optional[String] $socket_bind = '/var/run/docker.sock'
+  Optional[String] $socket_bind = '/var/run/docker.sock',
+  String $version = 'present'
 ){
 
   include stdlib
@@ -27,14 +28,14 @@ class g_docker(
     $_ver = $::facts["g_docker"]["version"]
     # remove leading zeros from version and split engine type 
     $_version_parts = split(regsubst($_ver, /\.0+([0-9])/, '.\1', 'G'), /-/)
-    $version = SemVer($_version_parts[0])
-    $version_symbol = $_version_parts[1]?{
+    $installed_version = SemVer($_version_parts[0])
+    $installed_version_symbol = $_version_parts[1]?{
       undef   => 'ce',
       default => $_version_parts[1]
     }
   } else {
-    $version = undef
-    $version_symbol = undef
+    $installed_version = undef
+    $installed_version_symbol = undef
   }
 
   contain g_docker::firewall
@@ -100,6 +101,7 @@ class g_docker(
   class { 'docker':
     docker_ce_source_location => $_repo_location,
     docker_ce_key_source      => $_repo_key,
+    version                   => $version,
 
     extra_parameters          => $_docker_params,
     ip_forward                => true,

@@ -1,6 +1,6 @@
 class g_docker::firewall::native_helper {
-  if $::g_docker::version != undef and $::g_docker::version_symbol == 'ce' {
-      $_isolation_single = $::g_docker::version <= SemVer('18.3.0')
+  if $::g_docker::installed_version != undef and $::g_docker::installed_version_symbol == 'ce' {
+      $_isolation_single = $::g_docker::installed_version <= SemVer('18.3.0')
       $_isolation_stage = ! $_isolation_single
   } else {
     # not sure, so to be safe enable both
