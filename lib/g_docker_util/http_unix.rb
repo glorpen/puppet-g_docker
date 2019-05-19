@@ -1,7 +1,6 @@
 # copied from https://github.com/puppetlabs/net_http_unix/blob/master/lib/net_x/http_unix.rb
 require 'net/http'
-module NetX
-class HTTPUnix < Net::HTTP
+class NetX::HTTPUnix < Net::HTTP
   BufferedIO = ::Net::BufferedIO
   UNIX_REGEXP = %r{^unix://}i
 
@@ -41,5 +40,4 @@ class HTTPUnix < Net::HTTP
     @socket.debug_output = @debug_output
     on_connect
   end
-end
 end
