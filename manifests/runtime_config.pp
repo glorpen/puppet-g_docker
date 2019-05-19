@@ -2,6 +2,8 @@ define g_docker::runtime_config(
   Enum['present', 'absent'] $ensure = 'present',
   Optional[String] $reload_signal = undef
 ){
+  assert_private()
+
   $sanitised_name = ::docker::sanitised_name($name)
   $container_path = "${::g_docker::runtime_config_path}/${sanitised_name}"
 

@@ -5,6 +5,9 @@ define g_docker::runtime_config::group(
   Optional[String] $source = undef,
   Boolean $source_reload = false
 ){
+
+  assert_private()
+
   $sanitised_name = ::docker::sanitised_name($container)
   $container_path = "${::g_docker::runtime_config_path}/${sanitised_name}"
   $group_path = "${container_path}/${group_name}"
