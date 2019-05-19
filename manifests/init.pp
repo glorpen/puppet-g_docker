@@ -1,3 +1,28 @@
+# Class: g_docker
+#
+# Setups Docker.
+#
+# Parameters:
+#
+#   String [*data_vg_name*]                 - LVM volume group to use for container persistent data
+#   String [*data_path*]                    - Directory where persistent data volumes will be mounted
+#   String [*runtime_config_path*]          - Directory for runtime configuration files
+#   Hash   [*instances*]                    - Containers to create (uses g_docker::run)
+#   Hash   [*registries*]                   - Registries to log in (uses docker::registry)
+#   Array[String] [*insecure_registries*]   - Names of registries to mark as insecure
+#   Optional[String] [*ipv6_cidr*]          - IPv6 subnet to use
+#   Hash [*networks*]                       - Manages docker networks (uses g_docker::network)
+#   Optional[String] [*auto_prune*]         - Creates cron job to prune images/containers/data volumes not used for given time
+#   Hash [*auto_prune_options*]             - Cron options for prune job
+#   String [*docker_data_path*]             - Docker data dir, defaults to `/var/lib/docker`
+#   String [*service_prefix*]               - Prefix to use for created services, defaults to `docker-`
+#   String [*log_driver*]                   - Logging driver, defaults to `syslog`
+#   Enum [*log_level*]                      - Log level, one of 'debug', 'info', 'warn', 'error', 'fatal', defaults to `info`
+#   Hash[String, String] [*log_options*]    - Log driver specific options
+#   String,Array[String],Undef [*tcp_bind*] - Bind docker daemon to given tcp host:port
+#   Optional[String] [*socket_bind*]        - Docker socket path, defaults to `/var/run/docker.sock`
+#   String [*version*]                      - Docker engine version, defaults to 'present'
+#
 class g_docker(
   String $data_vg_name,
   String $data_path = '/mnt/docker',

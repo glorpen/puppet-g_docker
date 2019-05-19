@@ -1,3 +1,4 @@
+# G_docker helpers
 module GDockerUtil
   def self.underscore(s)
     s.split(%r{([A-Z]+[a-z0-9]*)}).reject(&:empty?).join('_').downcase

@@ -1,5 +1,5 @@
-# copied from https://github.com/puppetlabs/net_http_unix/blob/master/lib/net_x/http_unix.rb
 require 'net/http'
+# copied from https://github.com/puppetlabs/net_http_unix/blob/master/lib/net_x/http_unix.rb
 class NetX::HTTPUnix < Net::HTTP
   BufferedIO = ::Net::BufferedIO
   UNIX_REGEXP = %r{^unix://}i

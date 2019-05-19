@@ -45,9 +45,9 @@ notifications:
   email: false
 deploy:
   provider: puppetforge
-  user: puppet
+  user: glorpen
   password:
-    secure: ""
+    secure: "L2CmJ/kI2EuXvSIqr5moeqNBc0uiEJlrX79h+qy0HQSpahSFy7NbQisv57Mb7sGlLoFE6xEg7QsT3YLwsghQ/eflTgzDBKrc3RyQQ+x9O7tvMxAUoHtdUJBEKQXhG/mcFNlbNa4xotErk43A6O3iUNXIzD+n+CrMXOgjGhJtRE3NlHXTxsQ1Q5aEa3GG9IxEUVJnkhYki+ifC6FrFDvyJORM7W7GjzPydpO3MpvO8+VHiTgXy1rmqXneDunaoVkOpC/TbQIvf0QmK3RicuEdMlhxpwhEAzi+7MezwJ05Pd8YJI/TREuFc6XCFVR0C4rQI8Xy3RRpUAzh8TPYALOOqfHFRPKn4uXDdoYt0BQZBVuRrvF6GgmEwwqkn1TiJzydSikq8yogWBbRna2JFIZH5KuTP9sOPBGbRHwDhB0/DUy3+dtvEoaof97G5kIy0Ukzp6At48MYg+Al47YQqFnAz0IuNTJS/j0znteuRiHOM8IfEPJ4C/vewXBTnh/OvrABbuS5oisvB6C8WOOAXJj+rISxnBz8NveVwn4ArRFV/NXZDpC4eVKvrciMUdHr77aFBup6QfqyRxUAQz/p2oRJLqeIYjBeM2ILuZefEEfBIPLcKQ4mQyM+brTCpWcbad4ZbTEtb32dvW5rHC4owZjatQc3b1tRg3GeI4Sr5LjHays="
   on:
     tags: true
     all_branches: true
