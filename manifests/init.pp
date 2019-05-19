@@ -123,27 +123,27 @@ class g_docker(
     }
   }
 
+  $opt_bind_socket = $socket_bind?{
+    undef   => undef,
+    default => "unix://${socket_bind}"
+  }
+  $opt_bind_tcp = $tcp_bind?{
+    undef   => undef,
+    default => any2array($tcp_bind).map |$v| { "tcp://${v}" }
+  }
+
   class { 'docker':
     docker_ce_source_location => $_repo_location,
     docker_ce_key_source      => $_repo_key,
     version                   => $version,
-
     extra_parameters          => $_docker_params,
     ip_forward                => true,
     root_dir                  => $docker_data_path,
     log_level                 => $log_level,
     log_driver                => $log_driver,
-    log_opt                   => $log_options.map |$k, $v| {
-      "${k}=${v}"
-    },
-    socket_bind               => $socket_bind?{
-      undef   => undef,
-      default => "unix://${socket_bind}"
-    },
-    tcp_bind                  => $tcp_bind?{
-      undef   => undef,
-      default => any2array($tcp_bind).map |$v| { "tcp://${v}" }
-    },
+    log_opt                   => $log_options.map |$k, $v| { "${k}=${v}" },
+    socket_bind               => $opt_bind_socket,
+    tcp_bind                  => $opt_bind_tcp,
     *                         => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config
   }
 
