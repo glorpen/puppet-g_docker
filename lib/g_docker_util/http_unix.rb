@@ -1,5 +1,8 @@
 require 'net/http'
 # copied from https://github.com/puppetlabs/net_http_unix/blob/master/lib/net_x/http_unix.rb
+module NetX
+end
+# Class for using HTTP with Unix Sockets
 class NetX::HTTPUnix < Net::HTTP
   BufferedIO = ::Net::BufferedIO
   UNIX_REGEXP = %r{^unix://}i
