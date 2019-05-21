@@ -44,7 +44,8 @@ class g_docker(
   Hash[String, String] $log_options = {},
   Variant[String,Array[String],Undef] $tcp_bind = undef, #host:port
   Optional[String] $socket_bind = '/var/run/docker.sock',
-  String $version = 'present'
+  String $version = 'present',
+  Optional[String] $export_metrics = undef
 ){
 
   include stdlib
@@ -106,7 +107,13 @@ class g_docker(
     "--insecure-registry ${n}"
   }
 
-  $_docker_params = concat(['--userland-proxy=false'], $_docker_ipv6_params, $_docker_insecure_reg_params)
+  if $export_metrics {
+    $_docker_metrics_params = ['--experimental', "--metrics-addr=${export_metrics}"]
+  } else {
+    $_docker_metrics_params = []
+  }
+
+  $_docker_params = concat(['--userland-proxy=false'], $_docker_ipv6_params, $_docker_insecure_reg_params, $_docker_metrics_params)
 
   case $::facts['os']['name'] {
     'Centos': {
