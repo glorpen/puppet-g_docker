@@ -8,6 +8,7 @@ macaddress: "AA:AA:AA:AA:AA:AA"
 architecture: x86_64
 iptables_version: "1"
 ip6tables_version: "1"
+kernel: Linux
 os:
   family: 'RedHat'
   name: 'CentOS'

@@ -30,9 +30,9 @@ Facter.add(:g_docker) do
     end
 
     {
-      networks: networks,
-      version: version,
-      installed: installed,
+      'networks'  => networks,
+      'version'   => version,
+      'installed' => installed,
     }
   end
 end
