@@ -8,7 +8,10 @@ describe 'g_docker', type: :fact do
   let(:double_http) { instance_double(NetX::HTTPUnix) }
 
   context 'with docker not running' do
-    it { expect(Facter.fact(:g_docker).value).to include('installed' => false, 'version' => nil) }
+    it do
+      allow(NetX::HTTPUnix).to receive(:new).and_return(NetX::HTTPUnix.new('unix:///not-existing'))
+      expect(Facter.fact(:g_docker).value).to include('installed' => false, 'version' => nil)
+    end
   end
   describe 'with docker running' do
     before(:each) do
