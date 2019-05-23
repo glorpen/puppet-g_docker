@@ -22,12 +22,15 @@ define g_docker::runtime_config::group(
     recurselimit => 1
   }
 
-  if $source_reload {
-    File[$group_path]
-    ~>Exec["g_docker runtime config ${container}"]
-  }
-
-  if ! $source {
+  if $source {
+    if $source_reload {
+      File[$group_path]
+      ~>Exec["g_docker runtime config ${container}"]
+    } else {
+      File[$group_path]
+      ~>Docker::Run[$container]
+    }
+  } else {
     $configs.each |$config_name, $config| {
       g_docker::runtime_config::config { "${container}:${group_name}:${config_name}":
         require   => [Class['docker'], File[$group_path]],
