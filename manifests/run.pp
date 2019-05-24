@@ -202,7 +202,7 @@ define g_docker::run(
     ->Docker::Run[$name]
 
     G_docker::Data[$name]
-    ~>Docker::Run[$name]
+    ->Docker::Run[$name]
   } else {
     Docker::Run[$name]
     ->G_docker::Data[$name]
