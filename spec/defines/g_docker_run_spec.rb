@@ -11,6 +11,8 @@ describe 'G_docker::Run' do
 
   context 'with defaults' do
     it { is_expected.to compile }
+    # changes (eg. size) to G_docker::Data should not restart containers
+    it { is_expected.not_to contain_file('/mnt/docker/test').that_notifies('Docker::Run[test]') }
   end
   context 'with runtime config and hot reload' do
     let(:params) do

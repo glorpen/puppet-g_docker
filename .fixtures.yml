@@ -24,3 +24,9 @@ fixtures:
     "cron":
       repo: "git://github.com/voxpupuli/puppet-cron.git"
       ref:  "v1.3.1"
+    "lvm":
+      repo: "git://github.com/puppetlabs/puppetlabs-lvm.git"
+      ref:  "1.2.0"
+    "mount_core":
+      repo: "git://github.com/puppetlabs/puppetlabs-mount_core.git"
+      ref:  "1.0.3"
