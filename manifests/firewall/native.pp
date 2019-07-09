@@ -86,8 +86,25 @@ class g_docker::firewall::native {
   }
   firewallchain { 'DOCKER-USER:filter:IPv4':
     ensure  => present,
-    purge   => false,
+    purge   => true,
     require => Class['docker']
+  }
+
+  g_server::get_interfaces('external').each | $iface | {
+    g_firewall::ipv4 { "199 docker world isolation on ${iface}":
+      ensure  => present,
+      proto   => 'all',
+      action  => 'drop',
+      chain   => 'DOCKER-USER',
+      iniface => $iface,
+      require => G_firewall::Ipv4['300 g-docker user']
+    }
+  }
+  g_firewall::ipv4 { '300 g-docker user':
+    ensure => present,
+    proto  => 'all',
+    jump   => 'RETURN',
+    chain  => 'DOCKER-USER'
   }
 
   firewallchain { 'DOCKER-INGRESS:nat:IPv4':
