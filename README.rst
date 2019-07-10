@@ -4,7 +4,8 @@ g-docker
 
 Configures Docker daemon and allows running containers as system services.
 
-The main target of this module is running containerized apps as system services when not using cluster supervisor (Docker Swarm, Kubernetes, ...).
+The main target of this module is running containerized apps as system services
+when not using cluster supervisor (Docker Swarm, Kubernetes, ...).
 
 ----------------
 Helpful features
@@ -13,7 +14,8 @@ Helpful features
 - containers can be reloaded upon managed configuration changes - no restarting
 - persistent container data stored on managed LVM volumes
 - binding specific folders to container
-- manageable firewall - automatic rules created by Docker are accounted for by Puppet, you can safely purge unmanaged firewall rules
+- manageable firewall - automatic rules created by Docker are accounted for by
+  Puppet, you can safely purge unmanaged firewall rules
 - pluggable storage and firewall modules
 
 -----
@@ -29,7 +31,7 @@ Remember to enable and configure choosen firewall and storage driver.
 
    include ::g_docker::firewall::native
    include ::g_docker::storage::overlay2
-   
+
    class { ::g_docker: }
 
 Creating containers:
@@ -61,7 +63,8 @@ Hiera:
 Runtime configs and reloading
 =============================
 
-You can create small configuration files with puppet and mount it inside containers.
+You can create small configuration files with puppet and mount it inside
+containers.
 
 Hiera:
 

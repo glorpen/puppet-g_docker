@@ -1,5 +1,7 @@
 ---
 dist: xenial
+services:
+  - docker
 language: ruby
 cache: bundler
 before_install:
@@ -10,6 +12,7 @@ before_install:
   - bundle -v
 script:
   - 'bundle exec rake $CHECK'
+  - 'if [ $DEPLOY_TO_FORGE == "yes" ]; then docker run --rm -v $(pwd):/srv glorpen/hub-metadata --print-only -l /srv/README.rst > README.md; fi'
 bundler_args: --without system_tests
 rvm:
   - 2.5.3
