@@ -1,11 +1,9 @@
-# Define: g_docker::runtime_config
+# @summary This type setups configuration dir for container and Exec chain for hot reloading.
 #
-# This type setups configuration dir for container and Exec chain for hot reloading.
-#
-# Parameters:
-#
-#   String [*ensure*]        - Creates or removes config directory (present|absent)
-#   String [*reload_signal*] - Signal to send to container when reloading was requested
+# @param ensure
+#   Creates or removes config directory (present|absent).
+# @param reload_signal
+#   Signal to send to container when reloading was requested.
 #
 define g_docker::runtime_config(
   Enum['present', 'absent'] $ensure = 'present',

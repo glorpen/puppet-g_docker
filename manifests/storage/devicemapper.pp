@@ -1,3 +1,16 @@
+# @summary Configures Docker to use devicemapper as storage backend.
+#
+# @param basesize
+#   Default size for running containers, eg. 2G
+# @param thinpool_size
+#   Thin pool size.
+# @param thinpool_metadata_size
+#   Size of thinpool metadata.
+# @param thinpool_name
+#   Thinpool name to use.
+# @param vg_name
+#  Volume group to use.
+#
 class g_docker::storage::devicemapper(
   String $basesize,
   String $thinpool_size,

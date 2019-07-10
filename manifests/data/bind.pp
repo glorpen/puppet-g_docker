@@ -1,15 +1,19 @@
-# define: g_docker::data::bind
+# @summary This definition creates container volume mount point.
 #
-# This definition creates container volume mount point.
-#
-# Parameters:
-#   [*ensure*]                     - Enables or disables the specified server (present|absent)
-#   [*data_name*]                  - Name of data directory, used in LVM volume naming
-#   [*volume_name*]                - Name of data sub-directory, used in LVM volume naming
-#   [*bind_name*]                  - Name of bind directory (just a folder), for sharing space on single LVM volume
-#   [*user*]                       - Host user name/id to use as directory owner
-#   [*group*]                      - Host group name/id to use as directory owner
-#   [*mode*]                       - Permissions for directory
+# @param ensure
+#   Enables or disables the specified server (present|absent)
+# @param data_name
+#   Name of data directory, used in LVM volume naming
+# @param volume_name
+#   Name of data sub-directory, used in LVM volume naming
+# @param bind_name
+#   Name of bind directory (just a folder), for sharing space on single LVM volume
+# @param user
+#   Host user name/id to use as directory owner
+# @param group
+#   Host group name/id to use as directory owner
+# @param mode
+#   Permissions for directory
 #
 define g_docker::data::bind(
   String $data_name,

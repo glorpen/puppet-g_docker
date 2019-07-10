@@ -1,3 +1,4 @@
+# @api private
 class g_docker::storage::overlay2_helper{
 
   include ::g_docker::storage::overlay2

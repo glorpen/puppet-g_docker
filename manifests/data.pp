@@ -1,3 +1,4 @@
+# @summary Creates persistent data volumes for container.
 define g_docker::data(
   Enum['present','absent'] $ensure = 'present',
   Hash[String, Hash] $volumes = {}
