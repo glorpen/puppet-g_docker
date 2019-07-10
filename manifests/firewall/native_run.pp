@@ -14,7 +14,7 @@ define g_docker::firewall::native_run(
     }
   } else {
     g_server::get_interfaces($port_side).each | $iface | {
-      g_firewall::ipv6 { "200 docker publish ${name}":
+      g_firewall::ipv6 { "200 docker publish ${name} on ${iface}":
         ensure  => $ensure,
         dport   => $host_port,
         proto   => $protocol,
