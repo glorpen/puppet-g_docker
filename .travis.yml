@@ -1,5 +1,5 @@
 ---
-dist: trusty
+dist: xenial
 language: ruby
 cache: bundler
 before_install:
@@ -35,7 +35,7 @@ matrix:
       rvm: 2.5.3
       stage: spec
     -
-      env: DEPLOY_TO_FORGE=yes
+      env: CHECK="strings:generate:reference" DEPLOY_TO_FORGE=yes
       stage: deploy
 branches:
   only:
@@ -44,6 +44,7 @@ branches:
 notifications:
   email: false
 deploy:
+  skip_cleanup: true
   provider: puppetforge
   user: glorpen
   password:
