@@ -2,7 +2,7 @@ define g_docker::firewall::native_run(
   Integer $host_port,
   String $protocol,
   Boolean $host_network,
-  G_server::Side $side,
+  G_server::Side $port_side,
   Enum['present','absent'] $ensure = 'present'
 ){
   if $host_network {
@@ -13,7 +13,7 @@ define g_docker::firewall::native_run(
       action => 'accept'
     }
   } else {
-    g_server::get_interfaces($side).each | $iface | {
+    g_server::get_interfaces($port_side).each | $iface | {
       g_firewall::ipv6 { "200 docker publish ${name}":
         ensure  => $ensure,
         dport   => $host_port,
@@ -23,7 +23,7 @@ define g_docker::firewall::native_run(
       }
     }
 
-    if ($side in ['external', 'both']) {
+    if ($port_side in ['external', 'both']) {
       g_server::get_interfaces('external').each | $iface | {
         g_firewall::ipv4 { "200 docker publish ${iface}":
           ensure  => $ensure,

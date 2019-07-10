@@ -88,8 +88,11 @@ define g_docker::run(
       $_host_port = Integer($_port_info[0])
     }
 
-    $_container_port_info = split($container_port, '/')
-    $_container_port = $_container_port[0]
+    $_container_port_info = $container_port?{
+      String => split($container_port, '/'),
+      default => [$container_port]
+    }
+    $_container_port = $_container_port_info[0]
     $_port_side = $_container_port_info[1]?{
       undef => 'internal',
       default => $_container_port_info[1]
