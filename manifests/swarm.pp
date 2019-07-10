@@ -1,11 +1,10 @@
 class g_docker::swarm(
   String $cluster_iface,
   Optional[String] $manager_ip = undef,
-  Optional[String] $token = undef
+  Optional[String] $token = undef,
+  String $node_name = $::fqdn
 ){
   include ::g_docker
-
-  $vg_name = $::g_docker::data_vg_name
 
   $_swarm_init = $manager_ip?{
     undef   => true,
@@ -15,7 +14,7 @@ class g_docker::swarm(
     undef   => false,
     default => true
   }
-  ::docker::swarm { $::fqdn:
+  ::docker::swarm { $node_name:
     init           => $_swarm_init,
     join           => $_swarm_join,
     manager_ip     => $manager_ip,
