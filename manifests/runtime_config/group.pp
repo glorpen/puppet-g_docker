@@ -12,14 +12,24 @@ define g_docker::runtime_config::group(
   $container_path = "${::g_docker::runtime_config_path}/${sanitised_name}"
   $group_path = "${container_path}/${group_name}"
 
+  if $source {
+    $_opts = {
+      recurse => 'remote',
+    }
+  } else {
+    $_opts = {
+      recurse => true,
+      recurselimit => 1,
+    }
+  }
+
   file { $group_path:
-    ensure       => directory,
-    source       => $source,
-    recurse      => true,
-    backup       => false,
-    force        => true,
-    purge        => true,
-    recurselimit => 1
+    ensure => directory,
+    source => $source,
+    backup => false,
+    force  => true,
+    purge  => true,
+    *      => $_opts
   }
 
   if $source {

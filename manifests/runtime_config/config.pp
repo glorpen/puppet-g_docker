@@ -12,10 +12,23 @@ define g_docker::runtime_config::config (
   $container_config_path = "${::g_docker::runtime_config_path}/${sanitised_name}"
   $config_file = "${container_config_path}/${group}/${filename}"
 
+  if $source {
+    $_opts = {
+      recurse => 'remote',
+    }
+  } else {
+    $_opts = {
+      recurse => true,
+    }
+  }
+
   file { $config_file:
     ensure  => 'present',
     source  => $source,
-    content => $content
+    content => $content,
+    force   => true,
+    backup  => false,
+    *       => $_opts
   }
 
   if ($reload) {
