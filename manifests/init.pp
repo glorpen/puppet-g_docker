@@ -154,18 +154,19 @@ class g_docker(
   }
 
   class { 'docker':
-    docker_ce_source_location => $_repo_location,
-    docker_ce_key_source      => $_repo_key,
-    version                   => $version,
-    extra_parameters          => $_docker_params,
-    ip_forward                => true,
-    root_dir                  => $docker_data_path,
-    log_level                 => $log_level,
-    log_driver                => $log_driver,
-    log_opt                   => $log_options.map |$k, $v| { "${k}=${v}" },
-    socket_bind               => $opt_bind_socket,
-    tcp_bind                  => $opt_bind_tcp,
-    *                         => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config
+    docker_ce_source_location  => $_repo_location,
+    docker_ce_key_source       => $_repo_key,
+    version                    => $version,
+    extra_parameters           => $_docker_params,
+    ip_forward                 => true,
+    root_dir                   => $docker_data_path,
+    log_level                  => $log_level,
+    log_driver                 => $log_driver,
+    log_opt                    => $log_options.map |$k, $v| { "${k}=${v}" },
+    socket_bind                => $opt_bind_socket,
+    tcp_bind                   => $opt_bind_tcp,
+    acknowledge_unsupported_os => true,
+    *                          => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config
   }
 
   create_resources(::g_docker::run, $instances)
