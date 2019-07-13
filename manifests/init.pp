@@ -153,6 +153,21 @@ class g_docker(
     default => any2array($tcp_bind).map |$v| { "tcp://${v}" }
   }
 
+  case $::facts['os']['family'] {
+    'Gentoo': {
+      $_dist_opts = {
+        'manage_package' => false
+      }
+      package { 'docker':
+        ensure => $version,
+      }
+      ->Class['docker']
+    }
+    default: {
+      $_dist_opts = {}
+    }
+  }
+
   class { 'docker':
     docker_ce_source_location  => $_repo_location,
     docker_ce_key_source       => $_repo_key,
@@ -166,7 +181,7 @@ class g_docker(
     socket_bind                => $opt_bind_socket,
     tcp_bind                   => $opt_bind_tcp,
     acknowledge_unsupported_os => true,
-    *                          => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config
+    *                          => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config + $_dist_opts
   }
 
   create_resources(::g_docker::run, $instances)
