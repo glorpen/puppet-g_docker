@@ -203,7 +203,7 @@ class g_docker(
   }
 
   if $auto_prune != undef {
-    include cron
+    include g_server::cron
     # prune unused docker data
     cron::job { 'g_docker-auto-prune':
       require => File[$prune_script],
