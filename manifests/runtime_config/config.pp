@@ -1,9 +1,12 @@
 define g_docker::runtime_config::config (
   String $container,
-  String $group,
+  String $config_group,
   String $filename,
   Optional[String] $source = undef,
   Optional[String] $content = undef,
+  Variant[String, Integer, Undef] $user = undef,
+  Variant[String, Integer, Undef] $group = undef,
+  Optional[String] $mode = undef,
   Boolean $reload = false
 ){
   include g_docker
@@ -28,6 +31,9 @@ define g_docker::runtime_config::config (
     content => $content,
     force   => true,
     backup  => false,
+    owner   => $user,
+    group   => $group,
+    mode    => $mode,
     *       => $_opts
   }
 

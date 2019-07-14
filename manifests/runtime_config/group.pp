@@ -3,6 +3,9 @@ define g_docker::runtime_config::group(
   String $group_name = $name,
   Hash[String, Hash] $configs = {},
   Optional[String] $source = undef,
+  Variant[String, Integer, Undef] $user = undef,
+  Variant[String, Integer, Undef] $group = undef,
+  Optional[String] $mode = undef,
   Boolean $source_reload = false
 ){
 
@@ -29,6 +32,9 @@ define g_docker::runtime_config::group(
     backup => false,
     force  => true,
     purge  => true,
+    owner  => $user,
+    group  => $group,
+    mode   => $mode,
     *      => $_opts
   }
 
@@ -43,11 +49,11 @@ define g_docker::runtime_config::group(
   } else {
     $configs.each |$config_name, $config| {
       g_docker::runtime_config::config { "${container}:${group_name}:${config_name}":
-        require   => [Class['docker'], File[$group_path]],
-        container => $container,
-        group     => $group_name,
-        filename  => $config_name,
-        *         => $config
+        require      => [Class['docker'], File[$group_path]],
+        container    => $container,
+        config_group => $group_name,
+        filename     => $config_name,
+        *            => $config
       }
     }
   }
