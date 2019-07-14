@@ -91,7 +91,7 @@ class g_docker::firewall::native {
   }
 
   g_server::get_interfaces('external').each | $iface | {
-    g_firewall::ipv4 { "198 docker world isolation out on ${iface}":
+    g_firewall::ipv4 { "900 docker world isolation out on ${iface}":
       ensure  => present,
       proto   => 'all',
       action  => 'accept',
@@ -99,7 +99,7 @@ class g_docker::firewall::native {
       iniface => $iface,
       ctstate => ['RELATED', 'ESTABLISHED']
     }
-    g_firewall::ipv4 { "199 docker world isolation in on ${iface}":
+    g_firewall::ipv4 { "998 docker world isolation in on ${iface}":
       ensure  => present,
       proto   => 'all',
       action  => 'drop',
@@ -108,7 +108,7 @@ class g_docker::firewall::native {
     }
   }
 
-  g_firewall::ipv4 { '300 g-docker user':
+  g_firewall::ipv4 { '999 g-docker user':
     ensure => present,
     proto  => 'all',
     jump   => 'RETURN',
