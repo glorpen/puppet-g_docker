@@ -1,0 +1,28 @@
+run_before_start(){
+  <% if empty($before_start) { %>:<% } else { -%>
+  <%=$before_start -%>
+  <%- } %>
+}
+
+RUN_REMOVE_CONTAINER_ON_START=<% if $remove_container_on_start { %>y<% } else { %>n<% } %>
+RUN_REMOVE_CONTAINER_START_OPTIONS="<%=$remove_container_start_options %>"
+RUN_PULL_ON_START=<% if $pull_on_start { %>y<% } else { %>n<% } %>
+RUN_IMAGE="<%=$image %>"
+RUN_FLAGS="<%=$flags %>"
+
+run_after_create(){
+  <% if empty($after_create) { %>:<% } else { -%>
+  <%=$after_create -%>
+  <%- } %>
+}
+
+RUN_STOP_WAIT_TIME=<%=$stop_wait_time %>
+RUN_REMOVE_CONTAINER_ON_STOP=<% if $remove_container_on_stop { %>y<% } else { %>n<% } %>
+RUN_REMOVE_CONTAINER_STOP_OPTIONS="<%=$remove_container_stop_options %>"
+run_before_stop(){
+  <% if empty($before_stop) { %>:<% } else { -%>
+  <%=$before_stop -%>
+  <%- } %>
+}
+
+RUN_COMMAND="<%=$command %>"

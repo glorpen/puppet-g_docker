@@ -42,6 +42,6 @@ define g_docker::runtime_config::config (
     ~>Exec["g_docker runtime config ${container}"]
   } else {
     File[$config_file]
-    ~>Docker::Run[$container]
+    ~>G_docker::Compat::Run[$container]
   }
 }

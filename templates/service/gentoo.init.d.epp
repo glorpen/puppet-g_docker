@@ -1,0 +1,68 @@
+#!/sbin/openrc-run
+
+depend() {
+  use logger
+  need docker
+}
+
+CONTAINER_NAME="${SVCNAME/<%= $service_prefix %>}"
+
+start() {
+  ebegin "Running before-start commands for ${SVCNAME}"
+  run_before_start
+  eend $?
+
+  if [ x${RUN_REMOVE_CONTAINER_ON_START} = 'xy' ];
+  then
+    <%= $docker_command %> rm $RUN_REMOVE_CONTAINER_START_OPTIONS "${CONTAINER_NAME}" >/dev/null 2>&1
+  fi
+
+  if [ x${RUN_PULL_ON_START} = 'xy' ];
+  then
+    ebegin "Pulling image ${RUN_IMAGE}"
+    <%= $docker_command %> pull "${RUN_IMAGE}"
+    eend $?
+  fi
+
+  ebegin "Creating container for ${SVCNAME}"
+  <%= $docker_command %> create $RUN_FLAGS --name "${CONTAINER_NAME}" "${RUN_IMAGE}" $RUN_COMMAND
+  eend $?
+
+  ebegin "Running after-create commands for ${SVCNAME}"
+  run_after_create
+  eend $?
+
+  ebegin "Starting ${SVCNAME}"
+  <%= $docker_command %> start "${CONTAINER_NAME}"
+  eend $?
+}
+
+stop() {
+  ebegin "Running stop commands for ${SVCNAME}"
+  run_before_stop
+  eend $?
+
+  ebegin "Stopping ${SVCNAME}"
+  <%= $docker_command %> stop --time="${RUN_STOP_WAIT_TIME}" "${CONTAINER_NAME}"
+  if [ x${RUN_REMOVE_CONTAINER_ON_STOP} = 'xy' ];
+  then
+    <%= $docker_command %> rm $RUN_REMOVE_CONTAINER_STOP_OPTIONS "${CONTAINER_NAME}"
+  fi
+  eend $?
+}
+
+status() {
+  local _retval
+  local _container_state
+  _container_state=$(<%= $docker_command %> inspect -f '{{.State.Running}}' "${CONTAINER_NAME}" 2> /dev/null)
+  _retval=$?
+
+  ebegin "Checking if container ${CONTAINER_NAME} is running"
+  if [ x${_retval} = 'x0' ] && [ x${_container_state} = 'xtrue' ]; then
+    mark_service_started "${SVCNAME}"
+    eend 0
+  else
+    mark_service_stopped "${SVCNAME}"
+    eend 3
+  fi
+}

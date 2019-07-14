@@ -47,7 +47,7 @@ define g_docker::runtime_config(
       path        => '/bin:/usr/bin',
       command     => "docker kill -s ${reload_signal} ${sanitised_name}",
       #TODO: no error checking when SIGHUP reload, but no error checking on container start as it is detached..
-      require     => [Exec[$semaphore_name], Docker::Run[$name]],
+      require     => [Exec[$semaphore_name], G_docker::Compat::Run[$name]],
       tries       => 3,
       unless      => "test -f ${lock_file}"
     }

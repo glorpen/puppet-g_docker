@@ -45,7 +45,7 @@ define g_docker::data::bind(
 
     G_server::Volumes::Vol[$lv_name]
     ->File[$bind_path]
-    ->Docker::Run[$data_name]
+    ->G_docker::Compat::Run[$data_name]
   }
 
   # when ensure=absent, volume would be already removed

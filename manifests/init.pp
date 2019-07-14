@@ -184,6 +184,8 @@ class g_docker(
     *                          => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config + $_dist_opts
   }
 
+  $docker_command = $::docker::params::docker_command
+
   create_resources(::g_docker::run, $instances)
   create_resources(::docker::registry, $registries)
   create_resources(::g_docker::network, $networks)
@@ -210,6 +212,17 @@ class g_docker(
       command => $prune_script,
       user    => 'root',
       *       => $auto_prune_options
+    }
+  }
+
+  if $::facts['os']['family'] == 'Gentoo' {
+    file { '/etc/init.d/docker-service':
+      ensure => present,
+      mode => 'u=rwx,go=rx',
+      content => epp('g_docker/service/gentoo.init.d.epp', {
+        'service_prefix' => $service_prefix,
+        'docker_command' => $docker_command
+      })
     }
   }
 }

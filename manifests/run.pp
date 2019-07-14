@@ -114,10 +114,10 @@ define g_docker::run(
 
   $network_commands = $networks.map | $v | {
     if ($v =~ String) {
-      G_docker::Network[$v]->Docker::Run[$name]
+      G_docker::Network[$v]->G_docker::Compat::Run[$name]
       "/usr/bin/${docker_command} network connect '${v}' '${sanitised_name}'"
     } else {
-      G_docker::Network[$v['name']]->Docker::Run[$name]
+      G_docker::Network[$v['name']]->G_docker::Compat::Run[$name]
       $options = delete_undef_values([
         if $v['alias'] { "--alias '${v['alias']}'" },
         if $v['ip'] { "--ip '${v['ip']}'" },
@@ -192,33 +192,34 @@ define g_docker::run(
     "${k}=${_escaped_v}"
   }
 
-  docker::run { $name:
+  g_docker::compat::run { $name:
     ensure                    => $ensure,
     image                     => $image,
     remove_container_on_stop  => true,
     remove_container_on_start => true,
+    remove_volume_on_start    => true,
+    remove_volume_on_stop     => true,
     ports                     => $docker_ports,
     extra_parameters          => $_extra_parameters,
     net                       => $network,
     env                       => $_safe_env,
     command                   => $_image_command,
     stop_wait_time            => $stop_wait_time,
-    service_prefix            => $::g_docker::service_prefix,
     after_create              => $network_commands.join("\n"),
     depends                   => $depends_on
   }
 
   if $ensure == 'present' {
-    Docker::Run[$depends_on]
-    ->Docker::Run[$name]
+    G_docker::Compat::Run[$depends_on]
+    ->G_docker::Compat::Run[$name]
 
     G_docker::Data[$name]
-    ->Docker::Run[$name]
+    ->G_docker::Compat::Run[$name]
   } else {
-    Docker::Run[$name]
+    G_docker::Compat::Run[$name]
     ->G_docker::Data[$name]
 
-    Docker::Run[$name]
-    ->Docker::Run[$depends_on]
+    G_docker::Compat::Run[$name]
+    ->G_docker::Compat::Run[$depends_on]
   }
 }

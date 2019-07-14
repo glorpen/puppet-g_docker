@@ -44,7 +44,7 @@ define g_docker::runtime_config::group(
       ~>Exec["g_docker runtime config ${container}"]
     } else {
       File[$group_path]
-      ~>Docker::Run[$container]
+      ~>G_docker::Compat::Run[$container]
     }
   } else {
     $configs.each |$config_name, $config| {
