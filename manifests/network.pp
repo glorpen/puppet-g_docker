@@ -5,20 +5,28 @@ define g_docker::network(
   Array[String] $gateways = [],
   Array[String] $ranges = [],
   Hash $aux_addresses = {},
-  Hash $options = {}
+  Hash $options = {},
+  Boolean $internal = true
 ){
+
+  $_flags_internal = $internal ? {
+    true => ['--internal'],
+    default => []
+  }
+
   docker_network { $name:
-    ensure      => $ensure,
-    driver      => $driver,
-    subnet      => $subnets,
-    gateway     => $gateways,
-    ip_range    => $ranges,
-    aux_address => $aux_addresses.map | $k, $v | {
+    ensure           => $ensure,
+    driver           => $driver,
+    subnet           => $subnets,
+    gateway          => $gateways,
+    ip_range         => $ranges,
+    aux_address      => $aux_addresses.map | $k, $v | {
       "${k}=${v}"
     },
-    options     => $options.map | $k, $v | {
+    options          => $options.map | $k, $v | {
       "${k}=${v}"
     },
-    require     => Class['docker']
+    additional_flags => $_flags_internal,
+    require          => Class['docker']
   }
 }
