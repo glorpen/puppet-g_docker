@@ -13,6 +13,7 @@ define g_docker::compat::run(
   Array[String] $depends = [],
   Boolean $remove_volume_on_start = false,
   Boolean $remove_volume_on_stop = false,
+  Hash[String, String] $labels = {},
 ){
   $docker_command = $::docker::docker_command
   $sanitised_name = ::docker::sanitised_name($name)
@@ -24,6 +25,7 @@ define g_docker::compat::run(
         extra_params          => any2array($extra_parameters),
         net                   => $net,
         ports                 => any2array($ports),
+        labels                => $labels.map |$k, $v| { "${k}=${v}" }
       })
       $_depends = join(
         $depends.map|$i|{
@@ -70,15 +72,15 @@ define g_docker::compat::run(
         image                     => $image,
         remove_container_on_stop  => $remove_container_on_stop,
         remove_container_on_start => $remove_container_on_start,
-        ports                     => $docker_ports,
-        extra_parameters          => $_extra_parameters,
-        net                       => $network,
-        env                       => $_safe_env,
-        command                   => $_image_command,
+        ports                     => $ports,
+        extra_parameters          => $extra_parameters,
+        net                       => $net,
+        env                       => $env,
+        command                   => $command,
         stop_wait_time            => $stop_wait_time,
         service_prefix            => $::g_docker::service_prefix,
-        after_create              => $network_commands.join("\n"),
-        depends                   => $depends
+        after_create              => $after_create,
+        depends                   => $depends,
       }
     }
   }

@@ -16,6 +16,7 @@ define g_docker::run(
   Hash[String, String] $hosts = {},
   Hash[String, Hash] $runtime_configs = {},
   Enum['HUP','USR1', 'USR2'] $reload_signal = 'HUP',
+  Hash[String, String] $labels = {},
 ){
 
   include ::g_docker
@@ -206,7 +207,8 @@ define g_docker::run(
     command                   => $_image_command,
     stop_wait_time            => $stop_wait_time,
     after_create              => $network_commands.join("\n"),
-    depends                   => $depends_on
+    depends                   => $depends_on,
+    labels                    => $labels
   }
 
   if $ensure == 'present' {
