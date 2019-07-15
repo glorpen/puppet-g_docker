@@ -43,8 +43,7 @@ define g_docker::data::bind(
       #source  => $source
     }
 
-    G_server::Volumes::Vol[$lv_name]
-    ->File[$bind_path]
+    File[$bind_path]
     ->G_docker::Compat::Run[$data_name]
   }
 
