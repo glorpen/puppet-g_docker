@@ -2,7 +2,7 @@
 
 depend() {
   use logger
-  need docker
+  need docker $RUN_DEPENDENCIES
 }
 
 CONTAINER_NAME="${SVCNAME/<%= $service_prefix %>}"

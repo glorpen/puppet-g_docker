@@ -26,3 +26,4 @@ run_before_stop(){
 }
 
 RUN_COMMAND="<%=$command %>"
+RUN_DEPENDENCIES="<%=$deps %>"

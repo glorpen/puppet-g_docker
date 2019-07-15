@@ -25,6 +25,13 @@ define g_docker::compat::run(
         net                   => $net,
         ports                 => any2array($ports),
       })
+      $_depends = join(
+        $depends.map|$i|{
+          $sanitised_i = ::docker::sanitised_name($i)
+          "${::g_docker::service_prefix}${sanitised_i}"
+        },
+        ' '
+      )
       #TODO: depends
       file { "/etc/init.d/${::g_docker::service_prefix}${sanitised_name}":
         ensure => link,
@@ -46,7 +53,8 @@ define g_docker::compat::run(
           'remove_container_on_stop' => $remove_container_on_stop,
           'remove_container_stop_options' => $remove_volume_on_stop?{ true => '-v', default => ''},
           'before_stop' => '',
-          'command' => $command
+          'command' => $command,
+          'deps' => $_depends
         }),
         notify  => Service["${::g_docker::service_prefix}${sanitised_name}"]
       }
@@ -70,7 +78,7 @@ define g_docker::compat::run(
         stop_wait_time            => $stop_wait_time,
         service_prefix            => $::g_docker::service_prefix,
         after_create              => $network_commands.join("\n"),
-        depends                   => $depends_on
+        depends                   => $depends
       }
     }
   }
