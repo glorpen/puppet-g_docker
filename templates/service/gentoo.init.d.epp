@@ -25,7 +25,7 @@ start() {
   fi
 
   ebegin "Creating container for ${SVCNAME}"
-  <%= $docker_command %> create $RUN_FLAGS --name "${CONTAINER_NAME}" "${RUN_IMAGE}" $RUN_COMMAND
+  <%= $docker_command %> create $RUN_FLAGS --name "${CONTAINER_NAME}" "${RUN_IMAGE}" $RUN_COMMAND >/dev/null
   eend $?
 
   ebegin "Running after-create commands for ${SVCNAME}"
@@ -33,7 +33,7 @@ start() {
   eend $?
 
   ebegin "Starting ${SVCNAME}"
-  <%= $docker_command %> start "${CONTAINER_NAME}"
+  <%= $docker_command %> start "${CONTAINER_NAME}" >/dev/null
   eend $?
 }
 
@@ -43,10 +43,10 @@ stop() {
   eend $?
 
   ebegin "Stopping ${SVCNAME}"
-  <%= $docker_command %> stop --time="${RUN_STOP_WAIT_TIME}" "${CONTAINER_NAME}"
+  <%= $docker_command %> stop --time="${RUN_STOP_WAIT_TIME}" "${CONTAINER_NAME}" >/dev/null
   if [ x${RUN_REMOVE_CONTAINER_ON_STOP} = 'xy' ];
   then
-    <%= $docker_command %> rm $RUN_REMOVE_CONTAINER_STOP_OPTIONS "${CONTAINER_NAME}"
+    <%= $docker_command %> rm $RUN_REMOVE_CONTAINER_STOP_OPTIONS "${CONTAINER_NAME}" >/dev/null
   fi
   eend $?
 }
