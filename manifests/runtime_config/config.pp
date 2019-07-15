@@ -13,7 +13,7 @@ define g_docker::runtime_config::config (
 
   $sanitised_name = ::docker::sanitised_name($container)
   $container_config_path = "${::g_docker::runtime_config_path}/${sanitised_name}"
-  $config_file = "${container_config_path}/${group}/${filename}"
+  $config_file = "${container_config_path}/${config_group}/${filename}"
 
   if $source {
     $_opts = {
