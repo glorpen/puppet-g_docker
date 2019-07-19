@@ -185,7 +185,7 @@ define g_docker::run(
 
   $_safe_env = $env.map | $k, $v | {
     $_escaped_v = regsubst(
-        $v,
+        String($v),
         '("|\'|\\$|\\\\)',
         '\\\\\1',
         'G'
