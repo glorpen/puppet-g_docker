@@ -156,7 +156,9 @@ class g_docker(
   case $::facts['os']['family'] {
     'Gentoo': {
       $_dist_opts = {
-        'manage_package' => false
+        'manage_package' => false,
+        'service_config' => '/etc/conf.d/docker',
+        'service_config_template' => 'docker/etc/conf.d/docker.gentoo.erb'
       }
       package { 'docker':
         ensure => $version,
@@ -216,6 +218,7 @@ class g_docker(
   }
 
   if $::facts['os']['family'] == 'Gentoo' {
+    #TODO: main docker config and service
     file { '/etc/init.d/docker-service':
       ensure => present,
       mode => 'u=rwx,go=rx',
