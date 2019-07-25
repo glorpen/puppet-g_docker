@@ -10,7 +10,7 @@ describe 'G_docker::Runtime_config::Group' do
   let(:pre_condition) do
     [
       'class {"g_docker": data_vg_name => "vg_test", runtime_config_path => "/config.d" }',
-      'docker::run {"example": image => "example"}',
+      'g_docker::compat::run {"example": image => "example", ensure => "present"}',
       'g_docker::runtime_config {"example": reload_signal => "HUP"}',
     ]
   end
@@ -29,7 +29,7 @@ describe 'G_docker::Runtime_config::Group' do
         super().merge('source_reload' => false)
       end
 
-      it { is_expected.to contain_file('/config.d/example/test').that_notifies('Docker::Run[example]') }
+      it { is_expected.to contain_file('/config.d/example/test').that_notifies('G_docker::Compat::Run[example]') }
     end
 
     context 'enabled' do

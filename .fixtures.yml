@@ -14,7 +14,7 @@ fixtures:
       ref:  "v2.0.0"
     "docker":
       repo: "git://github.com/puppetlabs/puppetlabs-docker.git"
-      ref:  "3.5.0"
+      ref:  "v3.6.0"
     "yum":
       repo: "git://github.com/voxpupuli/puppet-yum.git"
       ref:  "v3.1.1"

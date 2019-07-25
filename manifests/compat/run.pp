@@ -1,8 +1,8 @@
 define g_docker::compat::run(
   Enum['present', 'absent'] $ensure,
   String $image,
-  Boolean $remove_container_on_stop,
-  Boolean $remove_container_on_start,
+  Boolean $remove_container_on_stop = true,
+  Boolean $remove_container_on_start = true,
   Variant[String,Array,Undef] $ports = [],
   Variant[String,Array[String],Undef] $extra_parameters = undef,
   Variant[String,Array] $net = 'bridge',
