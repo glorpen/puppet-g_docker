@@ -34,7 +34,22 @@ define g_docker::compat::run(
         },
         ' '
       )
-      #TODO: depends
+      $conf_d_content = epp('g_docker/service/gentoo.conf.d.epp', {
+        'before_start'                   => '',
+        'remove_container_on_start'      => $remove_container_on_start,
+        'remove_container_start_options' => $remove_volume_on_start?{ true => '-v', default => ''},
+        'pull_on_start'                  => false,
+        'image' => $image,
+        'flags' => $flags,
+        'docker_command' => $::g_docker::docker_command,
+        'after_create' => $after_create,
+        'stop_wait_time' => $stop_wait_time,
+        'remove_container_on_stop' => $remove_container_on_stop,
+        'remove_container_stop_options' => $remove_volume_on_stop?{ true => '-v', default => ''},
+        'before_stop' => '',
+        'command' => $command,
+        'deps' => $_depends
+      })
       file { "/etc/init.d/${::g_docker::service_prefix}${sanitised_name}":
         ensure => link,
         target => '/etc/init.d/docker-service',
@@ -42,22 +57,7 @@ define g_docker::compat::run(
       }
       file { "/etc/conf.d/${::g_docker::service_prefix}${sanitised_name}":
         ensure  => $ensure,
-        content => epp('g_docker/service/gentoo.conf.d.epp', {
-          'before_start'                   => '',
-          'remove_container_on_start'      => $remove_container_on_start,
-          'remove_container_start_options' => $remove_volume_on_start?{ true => '-v', default => ''},
-          'pull_on_start'                  => false,
-          'image' => $image,
-          'flags' => $flags,
-          'docker_command' => $::g_docker::docker_command,
-          'after_create' => $after_create,
-          'stop_wait_time' => $stop_wait_time,
-          'remove_container_on_stop' => $remove_container_on_stop,
-          'remove_container_stop_options' => $remove_volume_on_stop?{ true => '-v', default => ''},
-          'before_stop' => '',
-          'command' => $command,
-          'deps' => $_depends
-        }),
+        content => $conf_d_content,
         notify  => Service["${::g_docker::service_prefix}${sanitised_name}"]
       }
       service { "${::g_docker::service_prefix}${sanitised_name}":

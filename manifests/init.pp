@@ -136,7 +136,8 @@ class g_docker(
     }
   )
 
-  $_docker_params = ['--userland-proxy=false'] + $_docker_ipv6_params + $_docker_insecure_reg_params + $_docker_metrics_params + $_docker_ip_pool_params
+  $_docker_params = ['--userland-proxy=false'] + $_docker_ipv6_params + $_docker_insecure_reg_params + $_docker_metrics_params
+    + $_docker_ip_pool_params
 
   case $::facts['os']['name'] {
     'Centos': {
@@ -227,10 +228,9 @@ class g_docker(
   }
 
   if $::facts['os']['family'] == 'Gentoo' {
-    #TODO: main docker config and service
     file { '/etc/init.d/docker-service':
-      ensure => present,
-      mode => 'u=rwx,go=rx',
+      ensure  => present,
+      mode    => 'u=rwx,go=rx',
       content => epp('g_docker/service/gentoo.init.d.epp', {
         'service_prefix' => $service_prefix,
         'docker_command' => $docker_command
