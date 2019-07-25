@@ -36,6 +36,8 @@
 #   Docker socket path, defaults to `/var/run/docker.sock`.
 # @param version
 #   Docker engine version, defaults to 'present'.
+# @param address_pools
+#   Address pools to use in docker networks eg. ['172.16.0.0/12', 24] will create 172.16.1.0/24 network.
 #
 class g_docker(
   String $data_vg_name,
@@ -59,7 +61,8 @@ class g_docker(
   Variant[String,Array[String],Undef] $tcp_bind = undef, #host:port
   Optional[String] $socket_bind = '/var/run/docker.sock',
   String $version = 'present',
-  Optional[String] $export_metrics = undef
+  Optional[String] $export_metrics = undef,
+  Array[Tuple[Stdlib::IP::Address::V4::CIDR, Integer]] $address_pools = [],
 ){
 
   include stdlib
@@ -127,7 +130,13 @@ class g_docker(
     $_docker_metrics_params = []
   }
 
-  $_docker_params = concat(['--userland-proxy=false'], $_docker_ipv6_params, $_docker_insecure_reg_params, $_docker_metrics_params)
+  $_docker_ip_pool_params = flatten(
+    $address_pools.map |$i| {
+      ['--default-address-pool', "base=${i[0]},size=${i[1]}"]
+    }
+  )
+
+  $_docker_params = ['--userland-proxy=false'] + $_docker_ipv6_params + $_docker_insecure_reg_params + $_docker_metrics_params + $_docker_ip_pool_params
 
   case $::facts['os']['name'] {
     'Centos': {
