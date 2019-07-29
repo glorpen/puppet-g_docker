@@ -18,7 +18,9 @@ class g_docker::swarm(
     },
   }
 
-  if ($address_pools) {
+  if (empty($address_pools)) {
+    $_swarm_pool_opts = {}
+  } else {
     $address_pools.each |$item, $index| {
       if ($item[1] != $address_pools[0][1]) {
         fail("Swarm address pools should have same size, ${item[1]} found on ${index} pool")
@@ -28,8 +30,6 @@ class g_docker::swarm(
       'default_addr_pool' => $address_pools.map |$i| { $i[0] },
       'default_addr_pool_mask_length' => $address_pools[0][1]
     }
-  } else {
-    $_swarm_pool_opts = {}
   }
 
   ::docker::swarm { $node_name:
