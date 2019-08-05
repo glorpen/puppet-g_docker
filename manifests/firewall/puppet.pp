@@ -4,6 +4,7 @@ class g_docker::firewall::puppet (
 ){
   class { 'g_docker::firewall':
     helper        => 'g_docker::firewall::puppet_helper',
+    network_type  => 'g_docker::firewall::puppet_network',
     docker_config => {
       'iptables'   => false,
       'ip_masq'    => false,

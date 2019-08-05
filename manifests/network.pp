@@ -46,4 +46,13 @@ define g_docker::network(
     additional_flags => $_flags_internal,
     require          => Class['docker']
   }
+
+  if $::g_docker::firewall::network_type != undef {
+    create_resources($::g_docker::firewall::network_type, {
+      $name => {
+        'ensure'          => $ensure,
+        'external_access' => ! $internal,
+      }
+    })
+  }
 }
