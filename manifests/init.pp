@@ -186,7 +186,6 @@ class g_docker(
     docker_ce_key_source       => $_repo_key,
     version                    => $version,
     extra_parameters           => $_docker_params,
-    ip_forward                 => true,
     root_dir                   => $docker_data_path,
     log_level                  => $log_level,
     log_driver                 => $log_driver,

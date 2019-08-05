@@ -74,8 +74,9 @@ class g_docker::firewall::native {
     helper        => 'g_docker::firewall::native_helper',
     run_type      => 'g_docker::firewall::native_run',
     docker_config => {
-      'iptables' => true,
-      'ip_masq'  => true
+      'iptables'   => true,
+      'ip_masq'    => true,
+      'ip_forward' => true,
     }
   }
 
