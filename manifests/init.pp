@@ -54,6 +54,7 @@ class g_docker(
     'minute'  => 0,
   },
   String $docker_data_path = '/var/lib/docker',
+  String $default_bridge = 'docker0',
   String $service_prefix = 'docker-',
   String $log_driver = 'syslog',
   Enum['debug', 'info', 'warn', 'error', 'fatal'] $log_level = 'info',
@@ -193,6 +194,7 @@ class g_docker(
     socket_bind                => $opt_bind_socket,
     tcp_bind                   => $opt_bind_tcp,
     acknowledge_unsupported_os => true,
+    bridge                     => $default_bridge,
     *                          => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config + $_dist_opts
   }
 
