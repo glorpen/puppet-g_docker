@@ -64,6 +64,7 @@ class g_docker(
   String $version = 'present',
   Optional[String] $export_metrics = undef,
   Array[Tuple[Stdlib::IP::Address::V4::CIDR, Integer]] $address_pools = [],
+  Hash[String, Scalar] $labels = {},
 ){
 
   include stdlib
@@ -181,6 +182,14 @@ class g_docker(
     }
   }
 
+  $_labels = $labels.map | $k, $v| {
+    $_v = $v?{
+      Boolean => bool2str($v),
+      default => $v
+    }
+    "${k}=${v}"
+  }
+
   class { 'docker':
     docker_ce_source_location  => $_repo_location,
     docker_ce_key_source       => $_repo_key,
@@ -194,6 +203,7 @@ class g_docker(
     tcp_bind                   => $opt_bind_tcp,
     acknowledge_unsupported_os => true,
     bridge                     => $default_bridge,
+    labels                     => $_labels,
     *                          => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config + $_dist_opts
   }
 
