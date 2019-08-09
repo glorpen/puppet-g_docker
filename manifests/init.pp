@@ -122,9 +122,6 @@ class g_docker(
   } else {
     $_docker_ipv6_params = ['--ipv6', '--fixed-cidr-v6', $ipv6_cidr]
   }
-  $_docker_insecure_reg_params = $insecure_registries.map | $n | {
-    "--insecure-registry ${n}"
-  }
 
   if $export_metrics {
     $_docker_metrics_params = ['--experimental', "--metrics-addr=${export_metrics}"]
@@ -138,8 +135,7 @@ class g_docker(
     }
   )
 
-  $_docker_params = ['--userland-proxy=false'] + $_docker_ipv6_params + $_docker_insecure_reg_params + $_docker_metrics_params
-    + $_docker_ip_pool_params
+  $_docker_params = ['--userland-proxy=false'] + $_docker_ipv6_params + $_docker_metrics_params + $_docker_ip_pool_params
 
   case $::facts['os']['name'] {
     'Centos': {
@@ -182,14 +178,6 @@ class g_docker(
     }
   }
 
-  $_labels = $labels.map | $k, $v| {
-    $_v = $v?{
-      Boolean => bool2str($v),
-      default => $v
-    }
-    "${k}=${v}"
-  }
-
   class { 'docker':
     docker_ce_source_location  => $_repo_location,
     docker_ce_key_source       => $_repo_key,
@@ -203,9 +191,10 @@ class g_docker(
     tcp_bind                   => $opt_bind_tcp,
     acknowledge_unsupported_os => true,
     bridge                     => $default_bridge,
-    labels                     => $_labels,
     *                          => $::g_docker::firewall::docker_config + $::g_docker::storage::docker_config + $_dist_opts
   }
+
+  include g_docker::daemon
 
   $docker_command = $::docker::params::docker_command
 
