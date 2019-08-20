@@ -1,6 +1,6 @@
 {
   "name": "glorpen-g_docker",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": "Arkadiusz Dzięgiel",
   "summary": "Manages Docker containers, its volumes and configs.",
   "license": "GPL-3.0",
@@ -10,7 +10,7 @@
   "dependencies": [
     {
       "name": "puppetlabs/stdlib",
-      "version_requirement": ">=4.0.0 <5.0.0"
+      "version_requirement": ">=4.0.0 <7.0.0"
     },
     {
       "name": "puppetlabs/docker",
