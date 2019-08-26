@@ -9,7 +9,7 @@ class g_docker::firewall::puppet_helper {
   }[0]['name']
 
   g_docker::firewall::puppet_network { $default_network:
-    ensure => $ensure,
+    ensure          => $ensure,
     external_access => true
   }
 }
