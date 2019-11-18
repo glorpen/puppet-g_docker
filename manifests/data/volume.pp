@@ -6,7 +6,11 @@ define g_docker::data::volume(
   Enum['present','absent'] $ensure = 'present',
   Optional[Integer] $raid = undef,
   Optional[Integer] $mirrors = undef,
-  Optional[Integer] $stripes = undef
+  Optional[Integer] $stripes = undef,
+  Optional[String] $fs = undef,
+  Optional[String] $fs_options = undef,
+  Optional[String] $mount_options = undef,
+  Optional[Integer] $pass = undef
 ){
   include ::g_docker
 
@@ -14,10 +18,13 @@ define g_docker::data::volume(
   $mountpoint = "${::g_docker::data_path}/${data_name}/${volume_name}"
 
   $_volume_options = {
-    ensure     => $ensure,
-    vg_name    => $::g_docker::data_vg_name,
-    size       => $size,
-    mountpoint => $mountpoint,
+    ensure        => $ensure,
+    vg_name       => $::g_docker::data_vg_name,
+    size          => $size,
+    mountpoint    => $mountpoint,
+    fs            => $fs,
+    fs_options    => $fs_options,
+    mount_options => $mount_options
   }
 
   if $raid == undef {
