@@ -17,6 +17,7 @@ define g_docker::run(
   Hash[String, Hash] $runtime_configs = {},
   Enum['HUP','USR1', 'USR2'] $reload_signal = 'HUP',
   Hash[String, String] $labels = {},
+  Array[String] $devices = []
 ){
 
   include ::g_docker
@@ -165,6 +166,7 @@ define g_docker::run(
 
   $_extra_parameters = concat(
     $_params_caps,
+    $devices.map | $v | { "    --device ${v}" },
     concat($docker_volumes, $docker_mounts, $config_volumes, $localtime_mount).map | $v | {
       "    --mount ${v}"
     },
