@@ -78,7 +78,7 @@ define g_docker::run(
   }
 
   $docker_ports = $ports.map | $host_port_info, $container_port | {
-    if ($host_port_info =~ Integer) {
+    if ($host_port_info =~ G_docker::PortRange) {
       $_protocol = 'tcp'
       $_host_port = $host_port_info
     } else {
@@ -87,7 +87,7 @@ define g_docker::run(
         undef => 'tcp',
         default => $_port_info[1]
       }
-      $_host_port = Integer($_port_info[0])
+      $_host_port = $_port_info[0]
     }
 
     $_container_port_info = $container_port?{

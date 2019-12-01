@@ -1,5 +1,5 @@
 define g_docker::firewall::native_run(
-  Integer $host_port,
+  G_docker::PortRange $host_port,
   String $protocol,
   Boolean $host_network,
   G_server::Side $port_side,
