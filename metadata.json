@@ -1,6 +1,6 @@
 {
   "name": "glorpen-g_docker",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "author": "Arkadiusz Dzięgiel",
   "summary": "Manages Docker containers, its volumes and configs.",
   "license": "GPL-3.0",

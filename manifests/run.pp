@@ -1,3 +1,12 @@
+# @summary Creates docker system services
+#
+# @param ensure
+#   Create or remove service.
+# @param init
+#   Run an init inside the container.
+# @param localtime
+#   Mount /etc/localtime inside container.
+#
 define g_docker::run(
   String $image,
   Enum['present','absent'] $ensure = 'present',
@@ -17,7 +26,8 @@ define g_docker::run(
   Hash[String, Hash] $runtime_configs = {},
   Enum['HUP','USR1', 'USR2'] $reload_signal = 'HUP',
   Hash[String, String] $labels = {},
-  Array[String] $devices = []
+  Array[String] $devices = [],
+  Boolean $init = false
 ){
 
   include ::g_docker
@@ -164,6 +174,12 @@ define g_docker::run(
     $_user_parameters = []
   }
 
+  if $init {
+    $_params_init = ['--init']
+  } else {
+    $_params_init = []
+  }
+
   $_extra_parameters = concat(
     $_params_caps,
     $devices.map | $v | { "    --device ${v}" },
@@ -173,7 +189,8 @@ define g_docker::run(
     $hosts.map | $k, $v | {
       "    --add-host ${k}:${v}"
     },
-    $_user_parameters
+    $_user_parameters,
+    $_params_init
   )
 
   $_data_ensure = $volumes.empty?{
