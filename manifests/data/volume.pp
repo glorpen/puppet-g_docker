@@ -17,29 +17,44 @@ define g_docker::data::volume(
   $lv_name = "${data_name}_${volume_name}"
   $mountpoint = "${::g_docker::data_path}/${data_name}/${volume_name}"
 
-  $_volume_options = {
-    ensure        => $ensure,
-    vg_name       => $::g_docker::data_vg_name,
-    size          => $size,
-    mountpoint    => $mountpoint,
-    fs            => $fs,
-    fs_options    => $fs_options,
-    mount_options => $mount_options
-  }
+  if $::g_docker::data_vg_name {
+    $_volume_options = {
+      ensure        => $ensure,
+      vg_name       => $::g_docker::data_vg_name,
+      size          => $size,
+      mountpoint    => $mountpoint,
+      fs            => $fs,
+      fs_options    => $fs_options,
+      mount_options => $mount_options
+    }
 
-  if $raid == undef {
-    g_server::volumes::vol { $lv_name:
-      * => $_volume_options
+    if $raid == undef {
+      g_server::volumes::vol { $lv_name:
+        * => $_volume_options
+      }
+      $_volume_resource = G_server::Volumes::Vol[$lv_name]
+    } else {
+      g_server::volumes::raid { $lv_name:
+        level   => $raid,
+        mirrors => $mirrors,
+        stripes => $stripes,
+        *       => $_volume_options
+      }
+      $_volume_resource = G_server::Volumes::Raid[$lv_name]
     }
-    $_volume_resource = G_server::Volumes::Vol[$lv_name]
   } else {
-    g_server::volumes::raid { $lv_name:
-      level   => $raid,
-      mirrors => $mirrors,
-      stripes => $stripes,
-      *       => $_volume_options
+    $ensure_dir = $ensure?{
+      'present' => 'directory',
+      default   => 'absent'
     }
-    $_volume_resource = G_server::Volumes::Raid[$lv_name]
+    file { $mountpoint:
+      ensure       => $ensure_dir,
+      purge        => true,
+      force        => true,
+      recurselimit => 1,
+      resurce      => true
+    }
+    $_volume_resource = File[$mountpoint]
   }
 
   $binds.each | $bind_name, $bind_conf | {

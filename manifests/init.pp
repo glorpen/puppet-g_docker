@@ -40,7 +40,7 @@
 #   Address pools to use in docker networks eg. ['172.16.0.0/12', 24] will create 172.16.1.0/24 network.
 #
 class g_docker(
-  String $data_vg_name,
+  Optional[String] $data_vg_name = undef,
   String $data_path = '/mnt/docker',
   String $runtime_config_path = '/etc/docker/config.d',
   Hash $instances = {},
@@ -168,6 +168,7 @@ class g_docker(
         'service_config' => '/etc/conf.d/docker',
         'service_config_template' => 'docker/etc/conf.d/docker.gentoo.erb'
       }
+      # TODO: make service command as bash array
       package { 'docker':
         ensure => $version,
       }

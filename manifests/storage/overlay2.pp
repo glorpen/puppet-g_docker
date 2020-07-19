@@ -1,5 +1,12 @@
+# @summary Configures Docker overlay storage
+#
+# @param size
+#   Volume size
+# @param vg_name
+#   Volume group to use, leave empty if no LVM is available
+#
 class g_docker::storage::overlay2(
-  String $size,
+  String $size = '5G',
   Enum['present', 'absent'] $ensure = 'present',
   Optional[String] $vg_name = undef,
   String $lv_name = 'docker-data',
