@@ -32,10 +32,22 @@ class g_docker::swarm(
     }
   }
 
+  # choose single IP if multiple addresses are found on given interface
+  $_network_info = $::facts['networking']['interfaces'][$cluster_iface]
+  if ($_network_info['bindings'].length > 1 or $_network_info['bindings6'].length > 1) {
+    if $_network_info['bindings'] {
+      $_listen_addr = $::facts['networking']['interfaces'][$cluster_iface]['ip']
+    } else {
+      $_listen_addr = $::facts['networking']['interfaces'][$cluster_iface]['ip6']
+    }
+  } else {
+    $_listen_addr = $cluster_iface
+  }
+
   ::docker::swarm { $node_name:
     manager_ip     => $manager_ip,
-    advertise_addr => $cluster_iface,
-    listen_addr    => $cluster_iface,
+    advertise_addr => $_listen_addr,
+    listen_addr    => $_listen_addr,
     token          => $token,
     *              => $_swarm_opts + $_swarm_pool_opts
   }
