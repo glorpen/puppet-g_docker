@@ -91,7 +91,7 @@ class g_docker::swarm(
         $rule_name = "105 allow inbound docker swarm ${proto} from ${node_name}"
         $config = merge($rule_config, {
           source => $_listen_addr,
-          tag    => ['g_docker::swarm::node'],
+          tag    => 'g_docker::swarm::node'
         })
         if $_listen_addr =~ Stdlib::IP::Address::V6 {
           @@g_firewall::ipv6 { $rule_name: * => $config}
@@ -100,11 +100,10 @@ class g_docker::swarm(
         }
       }
 
-      G_firewall::Ipv4 <<| tag == 'g_docker::swarm::node' |>> {
-        iniface => $cluster_iface
-      }
-      G_firewall::Ipv6 <<| tag == 'g_docker::swarm::node' |>> {
-        iniface => $cluster_iface
+      puppetdb_query("resources[type, title, parameters]{exported=true and tag='g_docker::swarm::node' and certname !='${trusted['certname']}'}").each | $info | {
+        ensure_resource($info['type'], $info['title'], merge($info['parameters'], {
+          iniface => $cluster_iface
+        }))
       }
     }
     default: {}
