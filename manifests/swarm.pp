@@ -65,12 +65,12 @@ class g_docker::swarm(
   }
 
   $_firewall_rules = {
-    'udp' => {
+    'tcp' => {
         'dport'  => [2377, 7946],
         'proto'  => tcp,
         'action' => accept,
     },
-    'tcp' => {
+    'udp' => {
       'dport'  => [4789, 7946],
       'proto'  => udp,
       'action' => accept,
