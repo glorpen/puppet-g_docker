@@ -45,16 +45,14 @@ class g_docker::swarm(
     }
   }
 
-  # choose single IP if multiple addresses are found on given interface
+  # we need to choose single IP if multiple addresses are found on given interface
+  # but Docker Swarm uses single ipv4 address even when iface is provided
+  # so we will do the same
   $_network_info = $::facts['networking']['interfaces'][$cluster_iface]
-  if ($_network_info['bindings'].length > 1 or $_network_info['bindings6'].length > 1) {
-    if $_network_info['bindings'] {
-      $_advertise_addr = $_network_info['ip']
-    } else {
-      $_advertise_addr = $_network_info['ip6']
-    }
+  if $_network_info['bindings'] {
+    $_advertise_addr = $_network_info['ip']
   } else {
-    $_advertise_addr = $cluster_iface
+    $_advertise_addr = $_network_info['ip6']
   }
 
   ::docker::swarm { $node_name:
