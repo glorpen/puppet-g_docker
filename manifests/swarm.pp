@@ -13,9 +13,10 @@ class g_docker::swarm(
   String $cluster_iface,
   Optional[String] $manager_ip = undef,
   Optional[String] $token = undef,
+  Optional[String] $listen_addr = undef,
   String $node_name = $::fqdn,
   Array[Tuple[Stdlib::IP::Address::V4::CIDR, Integer]] $address_pools = [],
-  Enum['interface', 'node'] $firewall_mode = 'interface',
+  Enum['interface', 'node', 'none'] $firewall_mode = 'interface',
 ){
   include ::g_docker
 
@@ -48,18 +49,18 @@ class g_docker::swarm(
   $_network_info = $::facts['networking']['interfaces'][$cluster_iface]
   if ($_network_info['bindings'].length > 1 or $_network_info['bindings6'].length > 1) {
     if $_network_info['bindings'] {
-      $_listen_addr = $::facts['networking']['interfaces'][$cluster_iface]['ip']
+      $_advertise_addr = $_network_info['ip']
     } else {
-      $_listen_addr = $::facts['networking']['interfaces'][$cluster_iface]['ip6']
+      $_advertise_addr = $_network_info['ip6']
     }
   } else {
-    $_listen_addr = $cluster_iface
+    $_advertise_addr = $cluster_iface
   }
 
   ::docker::swarm { $node_name:
     manager_ip     => $manager_ip,
-    advertise_addr => $_listen_addr,
-    listen_addr    => $_listen_addr,
+    advertise_addr => $_advertise_addr,
+    listen_addr    => pick($listen_addr, $_advertise_addr),
     token          => $token,
     *              => $_swarm_opts + $_swarm_pool_opts
   }
@@ -90,10 +91,10 @@ class g_docker::swarm(
       $_firewall_rules.each | $proto, $rule_config | {
         $rule_name = "105 allow inbound docker swarm ${proto} from ${node_name}"
         $config = merge($rule_config, {
-          source => $_listen_addr,
+          source => $_advertise_addr,
           tag    => 'g_docker::swarm::node'
         })
-        if $_listen_addr =~ Stdlib::IP::Address::V6 {
+        if $_advertise_addr =~ Stdlib::IP::Address::V6 {
           @@g_firewall::ipv6 { $rule_name: * => $config}
         } else {
           @@g_firewall::ipv4 { $rule_name: * => $config}
