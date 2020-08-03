@@ -60,6 +60,7 @@ class g_docker::swarm(
     advertise_addr => $_advertise_addr,
     listen_addr    => pick($listen_addr, $_advertise_addr),
     token          => $token,
+    require        => Class[::g_docker],
     *              => $_swarm_opts + $_swarm_pool_opts
   }
 
