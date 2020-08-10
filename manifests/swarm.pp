@@ -14,7 +14,7 @@ class g_docker::swarm(
   Optional[String] $manager_ip = undef,
   Optional[String] $token = undef,
   Optional[String] $listen_addr = undef,
-  String $node_name = $::fqdn,
+  String $node_name = $trusted['certname'],
   Array[Tuple[Stdlib::IP::Address::V4::CIDR, Integer]] $address_pools = [],
   Enum['interface', 'node', 'none'] $firewall_mode = 'interface',
 ){
