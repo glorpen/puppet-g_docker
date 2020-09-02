@@ -7,7 +7,7 @@ define g_docker::data::volume(
   Optional[Integer] $raid = undef,
   Optional[Integer] $mirrors = undef,
   Optional[Integer] $stripes = undef,
-  Optional[String] $fs = undef,
+  Optional[String] $fs = 'ext4',
   Optional[String] $fs_options = undef,
   Optional[String] $mount_options = undef,
   Optional[Integer] $pass = undef
@@ -18,13 +18,18 @@ define g_docker::data::volume(
   $mountpoint = "${::g_docker::data_path}/${data_name}/${volume_name}"
 
   if $::g_docker::data_vg_name {
+    if $fs == 'ext4' and $fs_options == undef {
+      $_volume_fs_options = '-m0'
+    } else {
+      $_volume_fs_options = $fs_options
+    }
     $_volume_options = {
       ensure        => $ensure,
       vg_name       => $::g_docker::data_vg_name,
       size          => $size,
       mountpoint    => $mountpoint,
       fs            => $fs,
-      fs_options    => $fs_options,
+      fs_options    => $_volume_fs_options,
       mount_options => $mount_options
     }
 
